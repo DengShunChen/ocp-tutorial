@@ -81,14 +81,26 @@ print("模型已上傳到 S3!")
 # 確認 ServingRuntime 可用
 oc get servingruntimes -n weather-ml-project
 
-# 若沒有，套用預設 ServingRuntime
-oc apply -f https://raw.githubusercontent.com/opendatahub-io/modelmesh-serving/main/config/runtimes/mlserver-1.x.yaml \
-  -n weather-ml-project
+# 若沒有，請先在叢集內建立對應 ServingRuntime，或透過 Dashboard 啟用預設執行環境
 ```
 
 ```bash
-# 部署 InferenceService
-oc apply -f manifests/08-inferenceservice.yaml -n weather-ml-project
+# 部署 InferenceService（請依模型儲存位置調整）
+cat <<'EOF' | oc apply -n weather-ml-project -f -
+apiVersion: serving.kserve.io/v1beta1
+kind: InferenceService
+metadata:
+  name: rf-classifier
+spec:
+  predictor:
+    model:
+      modelFormat:
+        name: sklearn
+      runtime: mlserver-1.x
+      storage:
+        key: aws-connection-models
+        path: rf-classifier/1/model.joblib
+EOF
 
 # 監看部署狀態
 oc get inferenceservice rf-classifier -n weather-ml-project
@@ -105,7 +117,16 @@ oc wait --for=condition=Ready inferenceservice/rf-classifier \
 
 ```bash
 # 建立 KServe InferenceService
-oc apply -f manifests/09-kserve-isvc.yaml -n weather-ml-project
+cat <<'EOF' | oc apply -n weather-ml-project -f -
+apiVersion: serving.kserve.io/v1beta1
+kind: InferenceService
+metadata:
+  name: rf-classifier-kserve
+spec:
+  predictor:
+    sklearn:
+      storageUri: s3://models/rf-classifier/1/
+EOF
 
 # 查看部署狀態
 oc get inferenceservice -n weather-ml-project

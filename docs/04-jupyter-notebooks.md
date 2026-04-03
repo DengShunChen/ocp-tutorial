@@ -59,8 +59,26 @@ Cluster storage:
 ## 4.3 透過 CLI 建立 Notebook
 
 ```bash
-# 建立 Notebook
-oc apply -f manifests/04-notebook.yaml -n weather-ml-project
+# 範例：建立最小 Notebook（請依實際映像調整）
+cat <<'EOF' | oc apply -n weather-ml-project -f -
+apiVersion: kubeflow.org/v1
+kind: Notebook
+metadata:
+  name: pytorch-notebook
+spec:
+  template:
+    spec:
+      containers:
+        - name: notebook
+          image: registry.redhat.io/rhoai/notebooks:latest
+          resources:
+            requests:
+              cpu: "1"
+              memory: "2Gi"
+            limits:
+              cpu: "2"
+              memory: "4Gi"
+EOF
 
 # 確認 Notebook Pod 啟動
 oc get pod -n weather-ml-project -l app=pytorch-notebook
@@ -201,8 +219,8 @@ print("模型已儲存！")
 # 查看可用的 Accelerator Profile
 oc get acceleratorprofile -n redhat-ods-applications
 
-# 套用 GPU Accelerator Profile（需要 GPU Operator 已安裝）
-oc apply -f manifests/07-gpu-accelerator.yaml
+# Accelerator Profile 通常依 GPU 廠牌與叢集標籤客製化
+# 建議先透過 Dashboard 或既有叢集範本建立，再用 oc get acceleratorprofile 驗證
 ```
 
 ---

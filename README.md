@@ -20,7 +20,8 @@ OCP/
 ├── manifests/                    # OCP YAML 設定檔
 │   ├── 01-rhoai-subscription.yaml      # RHOAI Operator 訂閱
 │   ├── 02-datasciencecluster.yaml      # DataScienceCluster 設定
-│   └── 03-user-management.yaml        # 使用者/群組/專案/配額
+│   ├── 03-user-management.yaml         # 使用者/群組/專案/配額/RBAC
+│   └── 04-htpasswd-oauth.yaml          # HTPasswd OAuth 身分提供者
 │
 └── scripts/
     └── quick-setup.sh            # 快速安裝腳本
@@ -68,6 +69,19 @@ open index.html
 | [06](docs/06-model-serving.md) | 模型部署與推論服務 | 90 分鐘 |
 
 **估計總學習時間：7-8 小時**
+
+---
+
+## 🧭 專案摘要
+
+這個專案不是應用程式，而是一套可操作的教學教材與叢集設定範本，目標是帶你在 OpenShift/CRC 上完成一條完整的 AI 平台學習路徑：
+
+- 用 `manifests/` 建立 RHOAI Operator、DataScienceCluster、使用者群組、專案與 RBAC。
+- 用 `scripts/quick-setup.sh` 快速完成教學環境初始化。
+- 用 `docs/` 逐步學習從安裝、權限管理、Workbench、Pipelines 到模型服務。
+- 用 `index.html` 當作課程入口頁面，方便在本機瀏覽整體架構與模組順序。
+
+目前最有價值的使用方式，是把它當作「RHOAI 教學 lab starter kit」來跑，而不是當成通用產品安裝器。
 
 ---
 

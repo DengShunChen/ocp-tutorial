@@ -58,7 +58,7 @@ oc get secret htpasswd-secret -n openshift-config
 
 ```bash
 # 套用 OAuth 設定
-oc apply -f manifests/03-htpasswd-oauth.yaml
+oc apply -f manifests/04-htpasswd-oauth.yaml
 
 # 等待 OAuth Pod 重啟
 oc rollout status deployment oauth-openshift -n openshift-authentication
@@ -69,12 +69,8 @@ oc rollout status deployment oauth-openshift -n openshift-authentication
 ## 3.3 建立使用者群組
 
 ```bash
-# 建立資料科學使用者群組
-oc apply -f manifests/04-user-groups.yaml
-
-# 手動新增使用者到群組
-oc adm groups add-users ds-users user1 user2 user3
-oc adm groups add-users ds-admins ds-admin1
+# 建立資料科學使用者群組、Project、Quota 與 RBAC
+oc apply -f manifests/03-user-management.yaml
 
 # 驗證群組成員
 oc get group ds-users -o yaml
@@ -124,7 +120,7 @@ Data Science Project = OpenShift Namespace + RHOAI 特殊標籤
 # Settings → Data Science Projects → Create project
 
 # 方法二：透過 CLI
-oc apply -f manifests/05-ds-project.yaml
+oc apply -f manifests/03-user-management.yaml
 
 # 確認 Project 建立
 oc get namespace weather-ml-project \
@@ -139,7 +135,7 @@ oc get namespace weather-ml-project \
 
 ```bash
 # 套用資源配額
-oc apply -f manifests/06-resource-quota.yaml
+oc apply -f manifests/03-user-management.yaml
 
 # 查看配額使用情況
 oc describe resourcequota ds-project-quota \
@@ -199,7 +195,7 @@ oc login -u kubeadmin
 ## ✅ 模組 03 完成確認清單
 
 - [ ] HTPasswd OAuth Provider 設定完成
-- [ ] 使用者 user1-3 和 ds-admin1 建立成功
+- [ ] 使用者 user1、user2、user3 和 ds-admin1 建立成功
 - [ ] `ds-users` 和 `ds-admins` 群組建立並包含使用者
 - [ ] RHOAI Dashboard 的群組設定完成
 - [ ] Data Science Project `weather-ml-project` 建立成功
