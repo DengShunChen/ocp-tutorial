@@ -508,6 +508,52 @@
     .prereq-box ul { color: var(--text-secondary); font-size: 0.85rem; line-height: 1.8; padding-left: 1rem; }
     .prereq-box li { list-style: disc; }
 
+    /* ── SCROLL ANIMATIONS ── */
+    .fade-in { opacity: 0; transform: translateY(30px); transition: opacity 0.7s ease, transform 0.7s ease; }
+    .fade-in.visible { opacity: 1; transform: translateY(0); }
+    .fade-in-left { opacity: 0; transform: translateX(-30px); transition: opacity 0.6s ease, transform 0.6s ease; }
+    .fade-in-left.visible { opacity: 1; transform: translateX(0); }
+
+    /* ── HERO GRADIENT ANIMATION ── */
+    .hero h1 {
+      background: linear-gradient(135deg, #fff 0%, #ee0000 40%, #ff6666 60%, #fff 100%);
+      background-size: 300% 300%;
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+      animation: heroShift 6s ease infinite;
+    }
+    @keyframes heroShift {
+      0%,100% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+    }
+    .hero h1 span { -webkit-text-fill-color: transparent; }
+
+    /* ── LIVE STATUS PANEL ── */
+    .status-panel { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px,1fr)); gap: 1rem; margin-top: 2rem; }
+    .status-card { background: var(--bg-card); border:1px solid var(--border); border-radius:12px; padding:1.25rem; display:flex; align-items:center; gap:14px; transition: all 0.3s; }
+    .status-card:hover { border-color: var(--border-bright); transform: translateY(-3px); box-shadow: 0 8px 30px rgba(0,0,0,0.3); }
+    .status-indicator { width:10px; height:10px; border-radius:50%; flex-shrink:0; }
+    .si-green { background:#34d399; box-shadow: 0 0 8px rgba(52,211,153,0.5); animation: pulse 2s infinite; }
+    .si-yellow { background:#fbbf24; box-shadow: 0 0 8px rgba(251,191,36,0.5); }
+    .si-gray { background:#64748b; }
+    .status-info h4 { font-size:0.85rem; font-weight:600; margin-bottom:2px; }
+    .status-info p { font-size:0.72rem; color:var(--text-muted); }
+
+    /* ── PROJECT FILES ── */
+    .file-tree { background: var(--bg-card); border:1px solid var(--border); border-radius:12px; overflow:hidden; }
+    .file-tree-header { padding:12px 16px; background:var(--bg-secondary); border-bottom:1px solid var(--border); display:flex; align-items:center; gap:8px; font-size:0.82rem; font-weight:600; color:var(--text-secondary); }
+    .file-row { display:flex; align-items:center; gap:10px; padding:10px 16px; border-bottom:1px solid rgba(255,255,255,0.03); font-size:0.82rem; transition: background 0.2s; cursor:default; }
+    .file-row:hover { background: rgba(255,255,255,0.03); }
+    .file-row:last-child { border-bottom:none; }
+    .file-icon { font-size:1rem; width:20px; text-align:center; }
+    .file-name { flex:1; font-family:'JetBrains Mono',monospace; font-weight:500; }
+    .file-desc { color:var(--text-muted); font-size:0.72rem; }
+    .file-indent { padding-left: 36px; }
+
+    /* ── BADGE GLOW ── */
+    .glow-badge { display:inline-flex; align-items:center; gap:6px; padding:5px 14px; border-radius:100px; font-size:0.72rem; font-weight:600; letter-spacing:0.5px; }
+    .gb-green { background:rgba(52,211,153,0.1); border:1px solid rgba(52,211,153,0.3); color:#34d399; }
+    .gb-red { background:rgba(238,0,0,0.1); border:1px solid rgba(238,0,0,0.3); color:#ff6666; }
+
     /* Responsive */
     @media (max-width: 768px) {
       .stats-strip { flex-wrap: wrap; }
@@ -515,6 +561,7 @@
       .arch-layer { flex-direction: column; }
       .arch-layer-label { text-align: left; min-width: auto; }
       nav .nav-links { display: none; }
+      .status-panel { grid-template-columns: 1fr; }
     }
   </style>
 </head>
@@ -531,12 +578,14 @@
     OCP AI Platform 教學
   </div>
   <ul class="nav-links">
+    <li><a href="docs/architecture-diagram.html">架構圖</a></li>
     <li><a href="#architecture">架構</a></li>
     <li><a href="#learning-path">學習路徑</a></li>
     <li><a href="#components">核心元件</a></li>
-    <li><a href="#commands">快速指令</a></li>
+    <li><a href="#status">狀態</a></li>
+    <li><a href="#files">專案結構</a></li>
     <li><a href="docs/07-debugging-guide.md">除錯指南</a></li>
-    <li><a href="docs/01-prerequisites.md">開始學習</a></li>
+    <li><a href="docs/01-prerequisites.md" class="btn-primary" style="padding:6px 16px; font-size:0.8rem;">🚀 開始學習</a></li>
   </ul>
 </nav>
 
@@ -557,20 +606,20 @@
 <!-- STATS -->
 <div class="stats-strip">
   <div class="stat-item">
-    <div class="stat-num">6</div>
+    <div class="stat-num">7</div>
     <div class="stat-label">學習模組</div>
   </div>
   <div class="stat-item">
-    <div class="stat-num">RHOAI</div>
-    <div class="stat-label">核心平台</div>
+    <div class="stat-num">6</div>
+    <div class="stat-label">除錯案例</div>
   </div>
   <div class="stat-item">
-    <div class="stat-num">GPU</div>
-    <div class="stat-label">加速支援</div>
+    <div class="stat-num">5</div>
+    <div class="stat-label">架構層級</div>
   </div>
   <div class="stat-item">
-    <div class="stat-num">CRC</div>
-    <div class="stat-label">本機環境</div>
+    <div class="stat-num">IaC</div>
+    <div class="stat-label">基礎設施即程式碼</div>
   </div>
 </div>
 
@@ -887,14 +936,111 @@
 </div>
 </section>
 
+<!-- LIVE STATUS -->
+<section id="status" class="fade-in">
+  <div class="section-header">
+    <div class="section-tag">即時狀態</div>
+    <h2>叢集健康儀表板</h2>
+    <p>OpenShift Local (CRC) 環境中各關鍵組件的運行狀態一覽</p>
+  </div>
+  <div class="status-panel">
+    <div class="status-card"><div class="status-indicator si-green"></div><div class="status-info"><h4>OpenShift 4.21.4</h4><p>Node: crc · Ready</p></div></div>
+    <div class="status-card"><div class="status-indicator si-green"></div><div class="status-info"><h4>RHOAI Dashboard</h4><p>redhat-ods-applications · Running</p></div></div>
+    <div class="status-card"><div class="status-indicator si-green"></div><div class="status-info"><h4>Jupyter Workbench</h4><p>ai-test/test-jupyter-0 · 2/2 Running</p></div></div>
+    <div class="status-card"><div class="status-indicator si-green"></div><div class="status-info"><h4>CSI Hostpath Driver</h4><p>hostpath-provisioner · 4/4 Running</p></div></div>
+    <div class="status-card"><div class="status-indicator si-green"></div><div class="status-info"><h4>Notebook Controller</h4><p>redhat-ods-applications · Managed</p></div></div>
+    <div class="status-card"><div class="status-indicator si-green"></div><div class="status-info"><h4>Model Registry</h4><p>rhoai-model-registries · Running</p></div></div>
+    <div class="status-card"><div class="status-indicator si-gray"></div><div class="status-info"><h4>KServe</h4><p>managementState: Removed</p></div></div>
+    <div class="status-card"><div class="status-indicator si-gray"></div><div class="status-info"><h4>Ray / TrustyAI</h4><p>managementState: Removed</p></div></div>
+  </div>
+</section>
+
+<!-- PROJECT FILES -->
+<section id="files" style="background: var(--bg-secondary); max-width:100%; padding:4rem 2rem; margin:0;">
+<div style="max-width:1200px; margin:0 auto;" class="fade-in">
+  <div class="section-header">
+    <div class="section-tag">專案結構</div>
+    <h2>Infrastructure as Code</h2>
+    <p>所有配置以 YAML manifest 管理，一鍵可重現整個平台</p>
+  </div>
+  <div style="display:grid; grid-template-columns:1fr 1fr; gap:1.5rem;">
+    <div class="file-tree">
+      <div class="file-tree-header">📁 manifests/ — 基礎設施定義</div>
+      <div class="file-row"><span class="file-icon">📄</span><span class="file-name">01-rhoai-subscription.yaml</span><span class="file-desc">Operator 訂閱</span></div>
+      <div class="file-row"><span class="file-icon">⚙️</span><span class="file-name">02-datasciencecluster.yaml</span><span class="file-desc">DSC 組件管理</span></div>
+      <div class="file-row"><span class="file-icon">👥</span><span class="file-name">03-user-management.yaml</span><span class="file-desc">使用者與群組</span></div>
+      <div class="file-row"><span class="file-icon">🔐</span><span class="file-name">04-htpasswd-oauth.yaml</span><span class="file-desc">OAuth 認證</span></div>
+    </div>
+    <div class="file-tree">
+      <div class="file-tree-header">📖 docs/ — 學習模組</div>
+      <div class="file-row"><span class="file-icon">📘</span><span class="file-name">01-prerequisites.md</span><span class="file-desc">環境準備</span></div>
+      <div class="file-row"><span class="file-icon">📗</span><span class="file-name">02-install-rhoai.md</span><span class="file-desc">安裝 RHOAI</span></div>
+      <div class="file-row"><span class="file-icon">📙</span><span class="file-name">04-jupyter-notebooks.md</span><span class="file-desc">Jupyter 設定</span></div>
+      <div class="file-row"><span class="file-icon">📕</span><span class="file-name">07-debugging-guide.md</span><span class="file-desc">除錯指南（6 案例）</span></div>
+      <div class="file-row"><span class="file-icon">🗺️</span><span class="file-name">architecture-diagram.html</span><span class="file-desc">互動式架構圖</span></div>
+    </div>
+  </div>
+  <div style="text-align:center; margin-top:1.5rem;">
+    <a href="docs/architecture-diagram.html" class="btn-primary" style="margin-right:0.75rem;">🗺️ 查看架構圖</a>
+    <a href="docs/07-debugging-guide.md" class="btn-secondary">🔧 除錯指南</a>
+  </div>
+</div>
+</section>
+
 <!-- FOOTER -->
 <footer>
+  <div style="margin-bottom:1rem;">
+    <span class="glow-badge gb-green"><span style="width:6px;height:6px;border-radius:50%;background:#34d399;animation:pulse 2s infinite;"></span> Cluster Healthy · OpenShift 4.21.4</span>
+  </div>
   <p style="margin-bottom:0.5rem;">
-    📚 OCP AI Platform 教學材料 &nbsp;|&nbsp; 
+    📚 OCP AI Platform 教學材料 &nbsp;|&nbsp;
     基於 <a href="https://docs.redhat.com/en/documentation/red_hat_openshift_ai_self-managed" target="_blank">Red Hat OpenShift AI</a> 官方文件
   </p>
-  <p>環境：OpenShift Local (CRC) &nbsp;·&nbsp; 指令：<code style="font-family:monospace; background:rgba(255,255,255,0.1); padding:2px 6px; border-radius:4px;">eval $(crc oc-env)</code></p>
+  <p>環境：OpenShift Local (CRC) &nbsp;·&nbsp; 7 學習模組 &nbsp;·&nbsp; 6 除錯案例 &nbsp;·&nbsp; 互動式架構圖</p>
 </footer>
+
+<!-- SCROLL ANIMATION ENGINE -->
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  // Fade-in on scroll
+  const obs = new IntersectionObserver((entries) => {
+    entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('visible'); obs.unobserve(e.target); }});
+  }, { threshold: 0.1 });
+  document.querySelectorAll('.fade-in, .fade-in-left').forEach(el => obs.observe(el));
+
+  // Add fade-in to existing sections
+  document.querySelectorAll('section, .stats-strip').forEach((el, i) => {
+    if (!el.classList.contains('fade-in')) {
+      el.classList.add('fade-in');
+      el.style.transitionDelay = (i * 0.05) + 's';
+      obs.observe(el);
+    }
+  });
+
+  // Add fade-in to path items
+  document.querySelectorAll('.path-item').forEach((el, i) => {
+    el.classList.add('fade-in');
+    el.style.transitionDelay = (i * 0.08) + 's';
+    obs.observe(el);
+  });
+
+  // Add fade-in to component cards
+  document.querySelectorAll('.component-card, .cmd-card').forEach((el, i) => {
+    el.classList.add('fade-in');
+    el.style.transitionDelay = (i * 0.06) + 's';
+    obs.observe(el);
+  });
+
+  // Smooth scroll for nav links
+  document.querySelectorAll('a[href^="#"]').forEach(a => {
+    a.addEventListener('click', e => {
+      e.preventDefault();
+      const t = document.querySelector(a.getAttribute('href'));
+      if (t) t.scrollIntoView({ behavior:'smooth', block:'start' });
+    });
+  });
+});
+</script>
 
 </body>
 </html>

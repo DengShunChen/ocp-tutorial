@@ -1,0 +1,733 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OCP AI Platform - 堆疊架構圖</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-dark: #0a0e1a;
+      --bg-card: #111827;
+      --border-glow: rgba(99, 102, 241, 0.3);
+      --text-primary: #f1f5f9;
+      --text-secondary: #94a3b8;
+      --text-muted: #64748b;
+
+      /* Layer Colors */
+      --layer-user: #818cf8;
+      --layer-user-bg: rgba(129, 140, 248, 0.08);
+      --layer-user-border: rgba(129, 140, 248, 0.25);
+
+      --layer-ai: #f472b6;
+      --layer-ai-bg: rgba(244, 114, 182, 0.08);
+      --layer-ai-border: rgba(244, 114, 182, 0.25);
+
+      --layer-platform: #38bdf8;
+      --layer-platform-bg: rgba(56, 189, 248, 0.08);
+      --layer-platform-border: rgba(56, 189, 248, 0.25);
+
+      --layer-infra: #34d399;
+      --layer-infra-bg: rgba(52, 211, 153, 0.08);
+      --layer-infra-border: rgba(52, 211, 153, 0.25);
+
+      --layer-host: #fb923c;
+      --layer-host-bg: rgba(251, 146, 60, 0.08);
+      --layer-host-border: rgba(251, 146, 60, 0.25);
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg-dark);
+      color: var(--text-primary);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* Background Grid */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background:
+        linear-gradient(rgba(99, 102, 241, 0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(99, 102, 241, 0.03) 1px, transparent 1px);
+      background-size: 60px 60px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .container {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 40px 24px 80px;
+      position: relative;
+      z-index: 1;
+    }
+
+    /* Header */
+    .header {
+      text-align: center;
+      margin-bottom: 56px;
+    }
+
+    .header-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 16px;
+      border-radius: 100px;
+      background: rgba(99, 102, 241, 0.1);
+      border: 1px solid rgba(99, 102, 241, 0.2);
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--layer-user);
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      margin-bottom: 20px;
+    }
+
+    .header h1 {
+      font-size: 40px;
+      font-weight: 800;
+      background: linear-gradient(135deg, #f1f5f9 0%, #818cf8 50%, #f472b6 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 12px;
+      line-height: 1.2;
+    }
+
+    .header p {
+      font-size: 16px;
+      color: var(--text-secondary);
+      max-width: 600px;
+      margin: 0 auto;
+      line-height: 1.6;
+    }
+
+    /* Stack */
+    .stack {
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+      position: relative;
+    }
+
+    /* Connector line on the left */
+    .stack::before {
+      content: '';
+      position: absolute;
+      left: 28px;
+      top: 0;
+      bottom: 0;
+      width: 2px;
+      background: linear-gradient(
+        to bottom,
+        var(--layer-user),
+        var(--layer-ai),
+        var(--layer-platform),
+        var(--layer-infra),
+        var(--layer-host)
+      );
+      opacity: 0.3;
+      border-radius: 2px;
+    }
+
+    /* Layer */
+    .layer {
+      position: relative;
+      padding-left: 68px;
+      padding-bottom: 8px;
+      opacity: 0;
+      transform: translateY(30px);
+      animation: layerIn 0.6s ease forwards;
+    }
+
+    .layer:nth-child(1) { animation-delay: 0.1s; }
+    .layer:nth-child(2) { animation-delay: 0.25s; }
+    .layer:nth-child(3) { animation-delay: 0.4s; }
+    .layer:nth-child(4) { animation-delay: 0.55s; }
+    .layer:nth-child(5) { animation-delay: 0.7s; }
+
+    @keyframes layerIn {
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Layer dot on connector */
+    .layer-dot {
+      position: absolute;
+      left: 20px;
+      top: 32px;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      border: 3px solid;
+      background: var(--bg-dark);
+      z-index: 2;
+    }
+
+    /* Layer Card */
+    .layer-card {
+      border-radius: 16px;
+      padding: 28px 32px;
+      position: relative;
+      overflow: hidden;
+      transition: transform 0.3s ease, box-shadow 0.3s ease;
+      cursor: default;
+    }
+
+    .layer-card:hover {
+      transform: translateX(4px) scale(1.005);
+    }
+
+    .layer-card::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      width: 3px;
+      border-radius: 3px;
+    }
+
+    .layer-header {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      margin-bottom: 16px;
+    }
+
+    .layer-icon {
+      width: 42px;
+      height: 42px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      flex-shrink: 0;
+    }
+
+    .layer-title-group {
+      flex: 1;
+    }
+
+    .layer-label {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      margin-bottom: 2px;
+    }
+
+    .layer-title {
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--text-primary);
+    }
+
+    .layer-desc {
+      font-size: 13px;
+      color: var(--text-secondary);
+      line-height: 1.6;
+      margin-bottom: 18px;
+    }
+
+    /* Components Grid */
+    .components {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+      gap: 10px;
+    }
+
+    .component {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 14px;
+      border-radius: 10px;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-primary);
+      transition: all 0.2s ease;
+    }
+
+    .component:hover {
+      background: rgba(255, 255, 255, 0.06);
+      border-color: rgba(255, 255, 255, 0.12);
+    }
+
+    .component-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .component .status {
+      margin-left: auto;
+      font-size: 10px;
+      padding: 2px 8px;
+      border-radius: 100px;
+      font-weight: 600;
+    }
+
+    .status-on {
+      background: rgba(52, 211, 153, 0.15);
+      color: #34d399;
+    }
+
+    .status-off {
+      background: rgba(251, 146, 60, 0.15);
+      color: #fb923c;
+    }
+
+    .status-removed {
+      background: rgba(100, 116, 139, 0.15);
+      color: #64748b;
+    }
+
+    /* Layer-specific colors */
+    .layer--user .layer-dot { border-color: var(--layer-user); }
+    .layer--user .layer-card {
+      background: var(--layer-user-bg);
+      border: 1px solid var(--layer-user-border);
+      box-shadow: 0 4px 24px rgba(129, 140, 248, 0.06);
+    }
+    .layer--user .layer-card::before { background: var(--layer-user); }
+    .layer--user .layer-card:hover { box-shadow: 0 8px 32px rgba(129, 140, 248, 0.12); }
+    .layer--user .layer-icon { background: rgba(129, 140, 248, 0.15); }
+    .layer--user .layer-label { color: var(--layer-user); }
+    .layer--user .component-dot { background: var(--layer-user); }
+
+    .layer--ai .layer-dot { border-color: var(--layer-ai); }
+    .layer--ai .layer-card {
+      background: var(--layer-ai-bg);
+      border: 1px solid var(--layer-ai-border);
+      box-shadow: 0 4px 24px rgba(244, 114, 182, 0.06);
+    }
+    .layer--ai .layer-card::before { background: var(--layer-ai); }
+    .layer--ai .layer-card:hover { box-shadow: 0 8px 32px rgba(244, 114, 182, 0.12); }
+    .layer--ai .layer-icon { background: rgba(244, 114, 182, 0.15); }
+    .layer--ai .layer-label { color: var(--layer-ai); }
+    .layer--ai .component-dot { background: var(--layer-ai); }
+
+    .layer--platform .layer-dot { border-color: var(--layer-platform); }
+    .layer--platform .layer-card {
+      background: var(--layer-platform-bg);
+      border: 1px solid var(--layer-platform-border);
+      box-shadow: 0 4px 24px rgba(56, 189, 248, 0.06);
+    }
+    .layer--platform .layer-card::before { background: var(--layer-platform); }
+    .layer--platform .layer-card:hover { box-shadow: 0 8px 32px rgba(56, 189, 248, 0.12); }
+    .layer--platform .layer-icon { background: rgba(56, 189, 248, 0.15); }
+    .layer--platform .layer-label { color: var(--layer-platform); }
+    .layer--platform .component-dot { background: var(--layer-platform); }
+
+    .layer--infra .layer-dot { border-color: var(--layer-infra); }
+    .layer--infra .layer-card {
+      background: var(--layer-infra-bg);
+      border: 1px solid var(--layer-infra-border);
+      box-shadow: 0 4px 24px rgba(52, 211, 153, 0.06);
+    }
+    .layer--infra .layer-card::before { background: var(--layer-infra); }
+    .layer--infra .layer-card:hover { box-shadow: 0 8px 32px rgba(52, 211, 153, 0.12); }
+    .layer--infra .layer-icon { background: rgba(52, 211, 153, 0.15); }
+    .layer--infra .layer-label { color: var(--layer-infra); }
+    .layer--infra .component-dot { background: var(--layer-infra); }
+
+    .layer--host .layer-dot { border-color: var(--layer-host); }
+    .layer--host .layer-card {
+      background: var(--layer-host-bg);
+      border: 1px solid var(--layer-host-border);
+      box-shadow: 0 4px 24px rgba(251, 146, 60, 0.06);
+    }
+    .layer--host .layer-card::before { background: var(--layer-host); }
+    .layer--host .layer-card:hover { box-shadow: 0 8px 32px rgba(251, 146, 60, 0.12); }
+    .layer--host .layer-icon { background: rgba(251, 146, 60, 0.15); }
+    .layer--host .layer-label { color: var(--layer-host); }
+    .layer--host .component-dot { background: var(--layer-host); }
+
+    /* Arrows between layers */
+    .layer-arrow {
+      text-align: center;
+      padding: 4px 0;
+      color: var(--text-muted);
+      font-size: 18px;
+      padding-left: 68px;
+      opacity: 0.4;
+    }
+
+    /* Footer */
+    .footer {
+      text-align: center;
+      margin-top: 48px;
+      padding-top: 32px;
+      border-top: 1px solid rgba(255, 255, 255, 0.06);
+    }
+
+    .footer p {
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+
+    .footer .env-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 14px;
+      border-radius: 8px;
+      background: rgba(52, 211, 153, 0.1);
+      border: 1px solid rgba(52, 211, 153, 0.2);
+      color: #34d399;
+      font-size: 12px;
+      font-weight: 600;
+      margin-bottom: 12px;
+    }
+
+    .footer .env-badge::before {
+      content: '';
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: #34d399;
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+
+    /* Legend */
+    .legend {
+      display: flex;
+      justify-content: center;
+      gap: 20px;
+      margin-top: 16px;
+      flex-wrap: wrap;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      color: var(--text-secondary);
+    }
+
+    .legend-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+    }
+
+    /* Namespace tags */
+    .ns-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 2px 10px;
+      border-radius: 6px;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      font-size: 11px;
+      color: var(--text-muted);
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      margin-left: 8px;
+      vertical-align: middle;
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      .header h1 { font-size: 28px; }
+      .components { grid-template-columns: 1fr; }
+      .layer { padding-left: 48px; }
+      .layer-arrow { padding-left: 48px; }
+      .stack::before { left: 18px; }
+      .layer-dot { left: 10px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+
+    <!-- Header -->
+    <div class="header">
+      <div class="header-badge">◆ Architecture Overview</div>
+      <h1>OpenShift AI Platform</h1>
+      <p>Red Hat OpenShift AI (RHOAI) 在 OpenShift Local (CRC) 上的堆疊式架構設計，展示從硬體到使用者工作負載的完整分層關係。</p>
+    </div>
+
+    <!-- Stack -->
+    <div class="stack">
+
+      <!-- Layer 1: User Workloads -->
+      <div class="layer layer--user">
+        <div class="layer-dot"></div>
+        <div class="layer-card">
+          <div class="layer-header">
+            <div class="layer-icon">🧑‍💻</div>
+            <div class="layer-title-group">
+              <div class="layer-label">Layer 5 · User Workloads</div>
+              <div class="layer-title">使用者工作負載</div>
+            </div>
+          </div>
+          <p class="layer-desc">
+            資料科學家與 ML 工程師直接互動的層級。包含 Jupyter Notebook 工作環境、訓練任務與推論端點。每個 Data Science Project 對應一個 OpenShift Namespace。
+          </p>
+          <div class="components">
+            <div class="component">
+              <span class="component-dot"></span>
+              Jupyter Workbench
+              <span class="status status-on">Running</span>
+            </div>
+            <div class="component">
+              <span class="component-dot"></span>
+              Data Science Project
+              <span class="ns-tag">ai-test</span>
+            </div>
+            <div class="component">
+              <span class="component-dot"></span>
+              Pipeline Run
+              <span class="status status-on">Ready</span>
+            </div>
+            <div class="component">
+              <span class="component-dot"></span>
+              Model Endpoint
+              <span class="status status-off">Optional</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="layer-arrow">▼</div>
+
+      <!-- Layer 2: RHOAI Services -->
+      <div class="layer layer--ai">
+        <div class="layer-dot"></div>
+        <div class="layer-card">
+          <div class="layer-header">
+            <div class="layer-icon">🤖</div>
+            <div class="layer-title-group">
+              <div class="layer-label">Layer 4 · RHOAI Services</div>
+              <div class="layer-title">AI/ML 平台服務</div>
+            </div>
+          </div>
+          <p class="layer-desc">
+            由 DataScienceCluster (DSC) 資源控制的 RHOAI 核心服務。在 CRC 資源受限環境下，我們採取精簡策略 (Minimalist Approach)，僅啟用必要組件。
+          </p>
+          <div class="components">
+            <div class="component">
+              <span class="component-dot"></span>
+              RHOAI Dashboard
+              <span class="status status-on">Managed</span>
+            </div>
+            <div class="component">
+              <span class="component-dot"></span>
+              Notebook Controller
+              <span class="status status-on">Managed</span>
+            </div>
+            <div class="component">
+              <span class="component-dot"></span>
+              Data Science Pipelines
+              <span class="status status-on">Managed</span>
+            </div>
+            <div class="component">
+              <span class="component-dot"></span>
+              Model Registry
+              <span class="status status-on">Managed</span>
+            </div>
+            <div class="component">
+              <span class="component-dot"></span>
+              KServe
+              <span class="status status-removed">Removed</span>
+            </div>
+            <div class="component">
+              <span class="component-dot"></span>
+              Ray
+              <span class="status status-removed">Removed</span>
+            </div>
+            <div class="component">
+              <span class="component-dot"></span>
+              Training Operator
+              <span class="status status-removed">Removed</span>
+            </div>
+            <div class="component">
+              <span class="component-dot"></span>
+              TrustyAI
+              <span class="status status-removed">Removed</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="layer-arrow">▼</div>
+
+      <!-- Layer 3: OpenShift Platform -->
+      <div class="layer layer--platform">
+        <div class="layer-dot"></div>
+        <div class="layer-card">
+          <div class="layer-header">
+            <div class="layer-icon">☸️</div>
+            <div class="layer-title-group">
+              <div class="layer-label">Layer 3 · OpenShift Platform</div>
+              <div class="layer-title">容器編排平台</div>
+            </div>
+          </div>
+          <p class="layer-desc">
+            Red Hat OpenShift 4.21 提供企業級 Kubernetes 功能。包含 Operator Lifecycle Manager (OLM) 來管理 RHOAI Operator 的安裝與升級、OAuth 認證系統，以及叢集網路與路由。
+          </p>
+          <div class="components">
+            <div class="component">
+              <span class="component-dot"></span>
+              OLM / Operators
+              <span class="ns-tag">redhat-ods-operator</span>
+            </div>
+            <div class="component">
+              <span class="component-dot"></span>
+              OAuth / HTPasswd
+              <span class="status status-on">Active</span>
+            </div>
+            <div class="component">
+              <span class="component-dot"></span>
+              Image Registry
+              <span class="status status-on">Active</span>
+            </div>
+            <div class="component">
+              <span class="component-dot"></span>
+              OVN Network
+              <span class="status status-on">Active</span>
+            </div>
+            <div class="component">
+              <span class="component-dot"></span>
+              Ingress / Routes
+              <span class="status status-on">Active</span>
+            </div>
+            <div class="component">
+              <span class="component-dot"></span>
+              RBAC / Groups
+              <span class="status status-on">Active</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="layer-arrow">▼</div>
+
+      <!-- Layer 4: Infrastructure -->
+      <div class="layer layer--infra">
+        <div class="layer-dot"></div>
+        <div class="layer-card">
+          <div class="layer-header">
+            <div class="layer-icon">💾</div>
+            <div class="layer-title-group">
+              <div class="layer-label">Layer 2 · Cluster Infrastructure</div>
+              <div class="layer-title">叢集基礎設施</div>
+            </div>
+          </div>
+          <p class="layer-desc">
+            提供運算資源、儲存與排程的核心基礎建設。CSI Driver 負責本地磁碟掛載，Kubelet 負責監控節點健康狀態 (MemoryPressure / DiskPressure)。
+          </p>
+          <div class="components">
+            <div class="component">
+              <span class="component-dot"></span>
+              Kubelet
+              <span class="status status-on">Ready</span>
+            </div>
+            <div class="component">
+              <span class="component-dot"></span>
+              CSI Hostpath Driver
+              <span class="status status-on">4/4</span>
+            </div>
+            <div class="component">
+              <span class="component-dot"></span>
+              CRI-O Runtime
+              <span class="status status-on">Active</span>
+            </div>
+            <div class="component">
+              <span class="component-dot"></span>
+              CoreDNS
+              <span class="status status-on">Active</span>
+            </div>
+            <div class="component">
+              <span class="component-dot"></span>
+              Scheduler
+              <span class="status status-on">Active</span>
+            </div>
+            <div class="component">
+              <span class="component-dot"></span>
+              etcd
+              <span class="status status-on">Active</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="layer-arrow">▼</div>
+
+      <!-- Layer 5: Host Machine -->
+      <div class="layer layer--host">
+        <div class="layer-dot"></div>
+        <div class="layer-card">
+          <div class="layer-header">
+            <div class="layer-icon">🖥️</div>
+            <div class="layer-title-group">
+              <div class="layer-label">Layer 1 · Host Machine</div>
+              <div class="layer-title">本機環境 (OpenShift Local / CRC)</div>
+            </div>
+          </div>
+          <p class="layer-desc">
+            OpenShift Local (CRC) 在開發者的 macOS 上透過 libvirt 虛擬化技術建立一個單節點的 OpenShift 叢集。所有的 Master 與 Worker 角色都由這一台虛擬機承擔。
+          </p>
+          <div class="components">
+            <div class="component">
+              <span class="component-dot"></span>
+              Node: crc
+              <span class="status status-on">Ready</span>
+            </div>
+            <div class="component">
+              <span class="component-dot"></span>
+              vCPU: 8 cores
+            </div>
+            <div class="component">
+              <span class="component-dot"></span>
+              RAM: 20 GiB
+            </div>
+            <div class="component">
+              <span class="component-dot"></span>
+              Disk: 31 GiB
+            </div>
+            <div class="component">
+              <span class="component-dot"></span>
+              OS: RHCOS
+            </div>
+            <div class="component">
+              <span class="component-dot"></span>
+              IP: 192.168.126.11
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Footer -->
+    <div class="footer">
+      <div class="env-badge">OpenShift 4.21.4 · CRC Single Node</div>
+      <p>OCP AI Platform Tutorial · 堆疊架構圖 · 2026</p>
+      <div class="legend">
+        <div class="legend-item"><div class="legend-dot" style="background: #34d399;"></div> Running / Active</div>
+        <div class="legend-item"><div class="legend-dot" style="background: #fb923c;"></div> Optional</div>
+        <div class="legend-item"><div class="legend-dot" style="background: #64748b;"></div> Removed (精簡化)</div>
+      </div>
+    </div>
+
+  </div>
+</body>
+</html>

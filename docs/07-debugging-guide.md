@@ -55,9 +55,81 @@ spec:
       managementState: Removed
 ```
 
+```
+
 ---
 
-## 3. 檢查 Operator 健康狀況
+## 3. 案例分析：Node Eviction (節點驅逐 - 硬碟不足)
+
+### 現象
+- Pod 狀態顯示 `Failed`。
+- `Reason` 為 `Evicted`。
+- `Message` 顯示 `The node was low on resource: ephemeral-storage.`。
+
+### 原因
+OpenShift Local (CRC) 預設磁碟空間有限。當硬碟剩餘空間低於閾值（通常是 10% 或 15%）時，Kubelet 會為了保護核心系統而「驅逐」使用者 Pod。這通常是因為暫存環境 (`emptyDir`)、日誌或容器映像層過大。
+
+### 解決方法
+1.  **清理映像檔**：執行 `oc adm prune images` 刪除未使用的映像檔。
+2.  **檢查 PVC 使用率**：確保不是因為某個 Pod 持續寫入大量暫存檔。
+3.  **增加 CRC 磁碟**：在啟動 CRC 前執行 `crc config set disk-size <size_in_gb>`（需要刪除並重新建立實例）。
+
+---
+
+## 4. 案例分析：FailedMount (儲存驅動未就緒)
+
+### 現象
+- Pod 卡在 `ContainerCreating`。
+- `oc describe pod` 顯示 `FailedMount`。
+- 訊息包含 `driver name <name> not found in the list of registered CSI drivers`。
+
+### 原因
+在 CRC 中，本地磁碟是由 `hostpath-provisioner` 提供。如果負責該功能的 Pod 正處於 `Restarting` 或 `Creating` 狀態，所有掛載該磁碟的任務都會失敗。
+
+### 解決方法
+1.  **檢查驅動 Pod**: `oc get pods -A | grep hostpath-provisioner`。
+2.  **等待就緒**: 確認 Pod 狀態是否為 `4/4` (或該驅動對應的 Ready 數)。
+3.  **重新觸發**: 有時刪除掛掉的驅動 Pod 讓其重啟即可解決。
+
+---
+
+## 5. 案例分析：Image Pulling Latency (映像檔下載延遲)
+
+### 現象
+- Pod 狀態顯示 `ContainerCreating`。
+- `oc describe pod` 的 Events 最後一行為 `Normal: Pulling image`。
+
+### 原因
+OpenShift 基礎設施所使用的映像檔 (如 CSI Driver 或 Operator Image) 通常較大。在網路速度受限或磁碟 I/O 頻繁時，下載過程可能長達數分鐘。這在 CRC 這種本機單機環境尤其明顯。
+
+### 解決方法
+- **判斷標誌**: 只要 Reason 是 `Normal` 且 Message 是 `Pulling image`，就代表系統正在正常運作中，只需 **等待**。
+- **異常判斷**: 如果經過 5 分鐘以上仍未完成，或 Reason 變成 `Warning: Failed` 或 `ErrImagePull`，才需要介入檢查網路連線或 Pull Secret。
+
+---
+
+## 6. 案例分析：Node Taints 連鎖反應 (節點污點)
+
+### 現象
+- 新的 Pod 一直卡在 `Pending` 狀態。
+- `oc describe pod` 的 Events 顯示 `0/1 nodes are available: 1 node(s) had untolerated taint(s)`。
+- 進一步檢查節點 (`oc describe node crc`) 發現 `DiskPressure: True`，且有 `node.kubernetes.io/disk-pressure` 標記。
+
+### 診斷思路與真因
+這是一個經典的**連鎖反應 (Chain Reaction)**：
+1. 某個基礎組件 (如 CSI Driver) 下載了巨大的映像檔，導致節點硬碟空間到達極限 (通常是 > 85%)。
+2. Kubelet 觸發警報，將節點標示為 **DiskPressure (硬碟壓力)**，並打上「禁止調度 (NoSchedule)」的污點 (Taint)。
+3. 當使用者的 Jupyter Pod 嘗試啟動時，因為它無法「容忍 (Tolerate)」這個污點，就被拒絕進入節點，永遠卡在 `Pending`。
+
+### 解決方法
+這需要執行這三個步驟：
+1. **大掃除 (對治硬碟)**：執行 `oc adm prune images --confirm` 強制清除未使用的映像層與系統快取。
+2. **驗證消腫 (等待警報解除)**：靜待 1-3 分鐘，持續觀察 `oc describe node crc | grep -A 5 "Conditions:"`，確保 `DiskPressure` 恢復為 `False`。
+3. **強制重啟 (對治 Pod)**：因為舊的 Pod 已經卡在 Pending，最快的做法是直接刪除它 (`oc delete pod <pod-name> -n <namespace>`)，讓 OpenShift 在乾淨的環境下重新分配一個新的 Pod。
+
+---
+
+## 7. 檢查 Operator 健康狀況
 
 如果 RHOAI Dashboard 打不開，或者組件沒有按預期建立，請檢查 Operator 的狀態。
 
@@ -73,7 +145,7 @@ spec:
 
 ---
 
-## 4. 常見錯誤代碼與對策
+## 8. 常見錯誤代碼與對策
 
 | 錯誤訊息 | 可能原因 | 解決對策 |
 | :--- | :--- | :--- |
@@ -81,10 +153,12 @@ spec:
 | `CrashLoopBackOff` | 程式碼報錯或環境變數缺失 | 查看 `oc logs <pod>` |
 | `Pending` (Generic) | 資源不足或 PVC 無法綁定 | 檢查 `oc describe pod` 及 `oc get pvc` |
 | `FailedScheduling` | 資源不足 (CPU/GPU/RAM) | 減少資源請求或增加節點/關閉組件 |
+| `Evicted` | 節點壓力 (Disk/Memory/PID) | 檢查 `ephemeral-storage` 或 Node Conditions |
+| `... had untolerated taint` | 節點發生異常或壓力過大 | 檢查 `oc describe node` 的 Conditions |
 
 ---
 
-## 5. 使用者權限問題
+## 9. 使用者權限問題
 
 如果使用者登入後看不到某些功能：
 1.  確認使用者是否在 `rhoai-users` 或 `rhoai-admins` 群組中。
