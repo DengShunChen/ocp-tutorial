@@ -1,0 +1,884 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>OCP AI 運算平台教學 | Red Hat OpenShift AI</title>
+  <meta name="description" content="完整的 Red Hat OpenShift AI 平台建置教學，從安裝設定到提供使用者 AI/ML 計算服務。" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg-primary: #0a0e1a;
+      --bg-secondary: #0f1526;
+      --bg-card: #141929;
+      --bg-card-hover: #1a2035;
+      --accent-red: #ee0000;
+      --accent-red-dim: #cc0000;
+      --accent-blue: #3b82f6;
+      --accent-purple: #8b5cf6;
+      --accent-green: #10b981;
+      --accent-orange: #f59e0b;
+      --accent-cyan: #06b6d4;
+      --text-primary: #f1f5f9;
+      --text-secondary: #94a3b8;
+      --text-muted: #64748b;
+      --border: #1e2d4a;
+      --border-bright: #2d4a7a;
+      --glow-red: rgba(238, 0, 0, 0.15);
+      --glow-blue: rgba(59, 130, 246, 0.15);
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* ── Background Grid ── */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(59,130,246,0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(59,130,246,0.03) 1px, transparent 1px);
+      background-size: 40px 40px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* ── Gradient Orbs ── */
+    .orb {
+      position: fixed;
+      border-radius: 50%;
+      filter: blur(120px);
+      pointer-events: none;
+      z-index: 0;
+    }
+    .orb-1 { width: 600px; height: 600px; background: rgba(238,0,0,0.06); top: -200px; right: -100px; }
+    .orb-2 { width: 500px; height: 500px; background: rgba(59,130,246,0.06); bottom: -100px; left: -100px; }
+    .orb-3 { width: 400px; height: 400px; background: rgba(139,92,246,0.05); top: 40%; left: 50%; transform: translateX(-50%); }
+
+    /* ── NAVBAR ── */
+    nav {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: rgba(10,14,26,0.85);
+      backdrop-filter: blur(20px);
+      border-bottom: 1px solid var(--border);
+      padding: 0 2rem;
+      height: 64px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .nav-logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 1.1rem;
+      font-weight: 700;
+      letter-spacing: -0.3px;
+    }
+    .nav-logo .rh-badge {
+      background: var(--accent-red);
+      color: white;
+      font-size: 0.65rem;
+      font-weight: 700;
+      padding: 3px 7px;
+      border-radius: 4px;
+      letter-spacing: 0.5px;
+    }
+    .nav-links {
+      display: flex;
+      gap: 0.25rem;
+      list-style: none;
+    }
+    .nav-links a {
+      color: var(--text-secondary);
+      text-decoration: none;
+      font-size: 0.875rem;
+      font-weight: 500;
+      padding: 6px 14px;
+      border-radius: 8px;
+      transition: all 0.2s;
+    }
+    .nav-links a:hover { color: var(--text-primary); background: var(--bg-card); }
+
+    /* ── HERO ── */
+    .hero {
+      position: relative;
+      z-index: 1;
+      text-align: center;
+      padding: 5rem 2rem 4rem;
+      max-width: 900px;
+      margin: 0 auto;
+    }
+    .hero-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 16px;
+      background: rgba(238,0,0,0.1);
+      border: 1px solid rgba(238,0,0,0.3);
+      border-radius: 100px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: #ff6666;
+      margin-bottom: 1.5rem;
+      letter-spacing: 0.3px;
+    }
+    .hero-badge .dot {
+      width: 6px; height: 6px;
+      background: var(--accent-red);
+      border-radius: 50%;
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.5; transform: scale(1.3); }
+    }
+    .hero h1 {
+      font-size: clamp(2.2rem, 5vw, 3.5rem);
+      font-weight: 800;
+      line-height: 1.15;
+      letter-spacing: -1.5px;
+      margin-bottom: 1.25rem;
+      background: linear-gradient(135deg, #fff 0%, #94a3b8 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .hero h1 span {
+      background: linear-gradient(135deg, #ee0000, #ff6666);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .hero p {
+      font-size: 1.15rem;
+      color: var(--text-secondary);
+      line-height: 1.7;
+      max-width: 640px;
+      margin: 0 auto 2.5rem;
+    }
+    .hero-cta {
+      display: flex;
+      gap: 1rem;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+    .btn-primary {
+      padding: 12px 28px;
+      background: var(--accent-red);
+      color: white;
+      border: none;
+      border-radius: 10px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .btn-primary:hover { background: var(--accent-red-dim); transform: translateY(-2px); box-shadow: 0 8px 30px rgba(238,0,0,0.3); }
+    .btn-secondary {
+      padding: 12px 28px;
+      background: transparent;
+      color: var(--text-primary);
+      border: 1px solid var(--border-bright);
+      border-radius: 10px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .btn-secondary:hover { background: var(--bg-card); border-color: var(--accent-blue); transform: translateY(-2px); }
+
+    /* ── STATS ── */
+    .stats-strip {
+      position: relative; z-index: 1;
+      display: flex;
+      justify-content: center;
+      gap: 0;
+      border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+      background: var(--bg-secondary);
+      margin: 0;
+      padding: 0;
+    }
+    .stat-item {
+      text-align: center;
+      padding: 1.5rem 3rem;
+      border-right: 1px solid var(--border);
+      flex: 1;
+      max-width: 220px;
+    }
+    .stat-item:last-child { border-right: none; }
+    .stat-num {
+      font-size: 1.8rem;
+      font-weight: 800;
+      background: linear-gradient(135deg, var(--accent-blue), var(--accent-purple));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .stat-label { font-size: 0.78rem; color: var(--text-muted); margin-top: 4px; font-weight: 500; }
+
+    /* ── SECTION ── */
+    section { position: relative; z-index: 1; padding: 4rem 2rem; max-width: 1200px; margin: 0 auto; }
+    .section-header { text-align: center; margin-bottom: 3rem; }
+    .section-tag {
+      display: inline-block;
+      font-size: 0.75rem;
+      font-weight: 700;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      color: var(--accent-blue);
+      margin-bottom: 0.75rem;
+    }
+    .section-header h2 {
+      font-size: 2rem;
+      font-weight: 800;
+      letter-spacing: -0.8px;
+      color: var(--text-primary);
+      margin-bottom: 0.75rem;
+    }
+    .section-header p { color: var(--text-secondary); font-size: 1rem; }
+
+    /* ── ARCHITECTURE DIAGRAM ── */
+    .arch-diagram {
+      position: relative;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 2rem;
+      overflow: hidden;
+    }
+    .arch-diagram::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(135deg, rgba(59,130,246,0.03), rgba(139,92,246,0.03));
+      pointer-events: none;
+    }
+    .arch-layers {
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+    .arch-layer {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+    .arch-layer-label {
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--text-muted);
+      min-width: 90px;
+      text-align: right;
+    }
+    .arch-layer-boxes {
+      display: flex;
+      gap: 0.5rem;
+      flex: 1;
+      flex-wrap: wrap;
+    }
+    .arch-box {
+      flex: 1;
+      min-width: 100px;
+      padding: 10px 14px;
+      border-radius: 8px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      border: 1px solid transparent;
+      transition: all 0.3s;
+      cursor: default;
+    }
+    .arch-box:hover { transform: translateY(-2px); }
+    .ab-user { background: rgba(6,182,212,0.1); border-color: rgba(6,182,212,0.3); color: #67e8f9; }
+    .ab-dashboard { background: rgba(238,0,0,0.1); border-color: rgba(238,0,0,0.3); color: #ff8080; }
+    .ab-component { background: rgba(59,130,246,0.1); border-color: rgba(59,130,246,0.3); color: #93c5fd; }
+    .ab-compute { background: rgba(16,185,129,0.1); border-color: rgba(16,185,129,0.3); color: #6ee7b7; }
+    .ab-storage { background: rgba(245,158,11,0.1); border-color: rgba(245,158,11,0.3); color: #fcd34d; }
+    .ab-infra { background: rgba(139,92,246,0.1); border-color: rgba(139,92,246,0.3); color: #c4b5fd; }
+    .arch-divider {
+      height: 1px;
+      background: var(--border);
+      margin: 0.25rem 0 0.25rem 106px;
+    }
+
+    /* ── LEARNING PATH ── */
+    .learning-path {
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+    }
+    .path-item {
+      display: flex;
+      gap: 1.5rem;
+      position: relative;
+    }
+    .path-item:not(:last-child)::after {
+      content: '';
+      position: absolute;
+      left: 22px;
+      top: 50px;
+      width: 2px;
+      height: calc(100% - 10px);
+      background: linear-gradient(to bottom, var(--border-bright), var(--border));
+    }
+    .path-num {
+      width: 44px;
+      height: 44px;
+      min-width: 44px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.85rem;
+      font-weight: 800;
+      z-index: 1;
+      margin-top: 8px;
+    }
+    .path-content {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.5rem;
+      flex: 1;
+      margin-bottom: 1rem;
+      transition: all 0.3s;
+    }
+    .path-content:hover { border-color: var(--border-bright); transform: translateX(4px); background: var(--bg-card-hover); }
+    .path-content h3 { font-size: 1.05rem; font-weight: 700; margin-bottom: 0.5rem; }
+    .path-content p { color: var(--text-secondary); font-size: 0.875rem; line-height: 1.6; margin-bottom: 0.75rem; }
+    .path-tags { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+    .tag {
+      padding: 3px 10px;
+      border-radius: 6px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      font-family: 'JetBrains Mono', monospace;
+    }
+    .tag-red { background: rgba(238,0,0,0.1); color: #ff8080; border: 1px solid rgba(238,0,0,0.2); }
+    .tag-blue { background: rgba(59,130,246,0.1); color: #93c5fd; border: 1px solid rgba(59,130,246,0.2); }
+    .tag-green { background: rgba(16,185,129,0.1); color: #6ee7b7; border: 1px solid rgba(16,185,129,0.2); }
+    .tag-orange { background: rgba(245,158,11,0.1); color: #fcd34d; border: 1px solid rgba(245,158,11,0.2); }
+    .tag-purple { background: rgba(139,92,246,0.1); color: #c4b5fd; border: 1px solid rgba(139,92,246,0.2); }
+    .tag-cyan { background: rgba(6,182,212,0.1); color: #67e8f9; border: 1px solid rgba(6,182,212,0.2); }
+
+    .step-num-red { background: rgba(238,0,0,0.15); color: #ff6666; border: 2px solid rgba(238,0,0,0.4); }
+    .step-num-blue { background: rgba(59,130,246,0.15); color: #60a5fa; border: 2px solid rgba(59,130,246,0.4); }
+    .step-num-green { background: rgba(16,185,129,0.15); color: #34d399; border: 2px solid rgba(16,185,129,0.4); }
+    .step-num-purple { background: rgba(139,92,246,0.15); color: #a78bfa; border: 2px solid rgba(139,92,246,0.4); }
+    .step-num-orange { background: rgba(245,158,11,0.15); color: #fbbf24; border: 2px solid rgba(245,158,11,0.4); }
+    .step-num-cyan { background: rgba(6,182,212,0.15); color: #22d3ee; border: 2px solid rgba(6,182,212,0.4); }
+
+    /* ── QUICK COMMANDS ── */
+    .cmd-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 1.25rem;
+    }
+    .cmd-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+      transition: all 0.3s;
+    }
+    .cmd-card:hover { border-color: var(--border-bright); transform: translateY(-3px); box-shadow: 0 12px 40px rgba(0,0,0,0.4); }
+    .cmd-header {
+      padding: 12px 16px;
+      background: var(--bg-secondary);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .cmd-title { font-size: 0.82rem; font-weight: 600; color: var(--text-secondary); }
+    .cmd-dots { display: flex; gap: 5px; }
+    .cmd-dots span { width: 10px; height: 10px; border-radius: 50%; }
+    .dot-r { background: #ff5f56; }
+    .dot-y { background: #febc2e; }
+    .dot-g { background: #27c93f; }
+    .cmd-body { padding: 1rem 1.25rem; }
+    .cmd-line {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.8rem;
+      color: #e2e8f0;
+      line-height: 1.9;
+    }
+    .cmd-line .prompt { color: #475569; }
+    .cmd-line .cmd { color: #93c5fd; }
+    .cmd-line .arg { color: #6ee7b7; }
+    .cmd-line .flag { color: #fcd34d; }
+    .cmd-line .comment { color: #475569; font-style: italic; }
+    .cmd-line .output { color: #a78bfa; }
+
+    /* ── COMPONENT CARDS ── */
+    .component-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 1.25rem;
+    }
+    .component-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.5rem;
+      transition: all 0.3s;
+      position: relative;
+      overflow: hidden;
+    }
+    .component-card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 3px;
+    }
+    .component-card:hover { border-color: var(--border-bright); transform: translateY(-4px); box-shadow: 0 12px 40px rgba(0,0,0,0.4); }
+    .cc-red::before { background: linear-gradient(90deg, var(--accent-red), #ff6666); }
+    .cc-blue::before { background: linear-gradient(90deg, var(--accent-blue), #60a5fa); }
+    .cc-green::before { background: linear-gradient(90deg, var(--accent-green), #34d399); }
+    .cc-purple::before { background: linear-gradient(90deg, var(--accent-purple), #c084fc); }
+    .cc-orange::before { background: linear-gradient(90deg, var(--accent-orange), #fb923c); }
+    .cc-cyan::before { background: linear-gradient(90deg, var(--accent-cyan), #22d3ee); }
+    .comp-icon { font-size: 1.8rem; margin-bottom: 0.75rem; }
+    .component-card h3 { font-size: 1rem; font-weight: 700; margin-bottom: 0.5rem; }
+    .component-card p { color: var(--text-secondary); font-size: 0.85rem; line-height: 1.6; margin-bottom: 1rem; }
+    .comp-link {
+      font-size: 0.8rem;
+      color: var(--accent-blue);
+      text-decoration: none;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      transition: gap 0.2s;
+    }
+    .comp-link:hover { gap: 8px; }
+
+    /* ── FOOTER ── */
+    footer {
+      position: relative; z-index: 1;
+      border-top: 1px solid var(--border);
+      background: var(--bg-secondary);
+      padding: 2rem;
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 0.85rem;
+    }
+    footer a { color: var(--text-secondary); text-decoration: none; }
+    footer a:hover { color: var(--accent-red); }
+
+    /* ── PREREQ BOX ── */
+    .prereq-box {
+      background: rgba(245,158,11,0.06);
+      border: 1px solid rgba(245,158,11,0.25);
+      border-radius: 12px;
+      padding: 1.25rem 1.5rem;
+      margin-bottom: 1.5rem;
+      display: flex;
+      gap: 1rem;
+      align-items: flex-start;
+    }
+    .prereq-icon { font-size: 1.4rem; line-height: 1; }
+    .prereq-box h4 { font-size: 0.9rem; font-weight: 700; color: #fcd34d; margin-bottom: 0.4rem; }
+    .prereq-box ul { color: var(--text-secondary); font-size: 0.85rem; line-height: 1.8; padding-left: 1rem; }
+    .prereq-box li { list-style: disc; }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      .stats-strip { flex-wrap: wrap; }
+      .stat-item { border-right: none; border-bottom: 1px solid var(--border); min-width: 45%; }
+      .arch-layer { flex-direction: column; }
+      .arch-layer-label { text-align: left; min-width: auto; }
+      nav .nav-links { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="orb orb-1"></div>
+<div class="orb orb-2"></div>
+<div class="orb orb-3"></div>
+
+<!-- NAVBAR -->
+<nav>
+  <div class="nav-logo">
+    <span class="rh-badge">RH</span>
+    OCP AI Platform 教學
+  </div>
+  <ul class="nav-links">
+    <li><a href="#architecture">架構</a></li>
+    <li><a href="#learning-path">學習路徑</a></li>
+    <li><a href="#components">核心元件</a></li>
+    <li><a href="#commands">快速指令</a></li>
+    <li><a href="docs/01-prerequisites.html">開始學習</a></li>
+  </ul>
+</nav>
+
+<!-- HERO -->
+<div class="hero">
+  <div class="hero-badge">
+    <span class="dot"></span>
+    Red Hat OpenShift AI (RHOAI) · 完整教學課程
+  </div>
+  <h1>建立企業級 <span>OCP AI</span><br/>運算平台</h1>
+  <p>從零開始，學習如何在 OpenShift Container Platform 上部署、設定並提供 AI/ML 計算服務給一般使用者。涵蓋安裝、GPU 整合、模型訓練到生產部署。</p>
+  <div class="hero-cta">
+    <a href="#learning-path" class="btn-primary">🚀 開始學習</a>
+    <a href="#architecture" class="btn-secondary">📐 查看架構</a>
+  </div>
+</div>
+
+<!-- STATS -->
+<div class="stats-strip">
+  <div class="stat-item">
+    <div class="stat-num">6</div>
+    <div class="stat-label">學習模組</div>
+  </div>
+  <div class="stat-item">
+    <div class="stat-num">RHOAI</div>
+    <div class="stat-label">核心平台</div>
+  </div>
+  <div class="stat-item">
+    <div class="stat-num">GPU</div>
+    <div class="stat-label">加速支援</div>
+  </div>
+  <div class="stat-item">
+    <div class="stat-num">CRC</div>
+    <div class="stat-label">本機環境</div>
+  </div>
+</div>
+
+<!-- ARCHITECTURE -->
+<section id="architecture">
+  <div class="section-header">
+    <div class="section-tag">系統架構</div>
+    <h2>OCP AI Platform 架構圖</h2>
+    <p>Red Hat OpenShift AI 以分層架構提供完整的 MLOps 生命週期管理</p>
+  </div>
+
+  <div class="arch-diagram">
+    <div class="arch-layers">
+      <div class="arch-layer">
+        <div class="arch-layer-label">使用者層</div>
+        <div class="arch-layer-boxes">
+          <div class="arch-box ab-user">👨‍🔬 資料科學家</div>
+          <div class="arch-box ab-user">🧑‍💻 ML 工程師</div>
+          <div class="arch-box ab-user">📊 業務分析師</div>
+        </div>
+      </div>
+      <div class="arch-divider"></div>
+      <div class="arch-layer">
+        <div class="arch-layer-label">入口層</div>
+        <div class="arch-layer-boxes">
+          <div class="arch-box ab-dashboard">🖥️ RHOAI Dashboard</div>
+          <div class="arch-box ab-dashboard">🌐 OCP Console</div>
+        </div>
+      </div>
+      <div class="arch-divider"></div>
+      <div class="arch-layer">
+        <div class="arch-layer-label">服務層</div>
+        <div class="arch-layer-boxes">
+          <div class="arch-box ab-component">📓 Jupyter Notebooks</div>
+          <div class="arch-box ab-component">🔄 Data Science Pipelines (KFP)</div>
+          <div class="arch-box ab-component">🚀 Model Serving (KServe)</div>
+          <div class="arch-box ab-component">🧮 ModelMesh</div>
+          <div class="arch-box ab-component">🔍 TrustyAI</div>
+        </div>
+      </div>
+      <div class="arch-divider"></div>
+      <div class="arch-layer">
+        <div class="arch-layer-label">運算層</div>
+        <div class="arch-layer-boxes">
+          <div class="arch-box ab-compute">🖥️ CPU Nodes</div>
+          <div class="arch-box ab-compute">⚡ GPU Nodes (NVIDIA)</div>
+          <div class="arch-box ab-compute">💾 Memory-Optimized Nodes</div>
+        </div>
+      </div>
+      <div class="arch-divider"></div>
+      <div class="arch-layer">
+        <div class="arch-layer-label">儲存層</div>
+        <div class="arch-layer-boxes">
+          <div class="arch-box ab-storage">🪣 S3/MinIO (模型儲存)</div>
+          <div class="arch-box ab-storage">💽 PVC (工作磁碟)</div>
+          <div class="arch-box ab-storage">📦 Model Registry</div>
+        </div>
+      </div>
+      <div class="arch-divider"></div>
+      <div class="arch-layer">
+        <div class="arch-layer-label">基礎設施</div>
+        <div class="arch-layer-boxes">
+          <div class="arch-box ab-infra">☸️ OpenShift Container Platform</div>
+          <div class="arch-box ab-infra">🔌 NVIDIA GPU Operator</div>
+          <div class="arch-box ab-infra">🔐 OpenShift OAuth / RBAC</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- LEARNING PATH -->
+<section id="learning-path" style="background: var(--bg-secondary); max-width: 100%; padding: 4rem 2rem; margin:0;">
+<div style="max-width:1200px; margin:0 auto;">
+  <div class="section-header">
+    <div class="section-tag">學習路徑</div>
+    <h2>6 步驟建立 OCP AI 平台</h2>
+    <p>依序完成以下模組，從環境準備到提供生產級 AI 服務</p>
+  </div>
+
+  <div class="prereq-box">
+    <div class="prereq-icon">⚠️</div>
+    <div>
+      <h4>前置需求</h4>
+      <ul>
+        <li>OpenShift Local (CRC) 或 OCP 4.14+ 叢集並具備 cluster-admin 權限</li>
+        <li>已設定 <code style="font-family:monospace; background:rgba(255,255,255,0.1); padding:2px 6px; border-radius:4px;">eval $(crc oc-env)</code> 環境變數</li>
+        <li>至少 16 GB RAM (建議 32 GB+)、8 vCPU、100 GB 磁碟</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="learning-path">
+    <div class="path-item">
+      <div class="path-num step-num-red">01</div>
+      <div class="path-content">
+        <h3>環境準備與前置設定</h3>
+        <p>確認 OCP/CRC 叢集正常運作，安裝必要的 CLI 工具，設定 StorageClass，並確認 cluster-admin 權限。了解 OpenShift 基礎操作。</p>
+        <div class="path-tags">
+          <span class="tag tag-red">CRC</span>
+          <span class="tag tag-red">oc CLI</span>
+          <span class="tag tag-orange">StorageClass</span>
+          <span class="tag tag-blue">RBAC</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="path-item">
+      <div class="path-num step-num-blue">02</div>
+      <div class="path-content">
+        <h3>安裝 Red Hat OpenShift AI Operator</h3>
+        <p>透過 OperatorHub 安裝 RHOAI Operator，建立 DataScienceCluster CR，啟用所有核心元件，並驗證安裝狀態。</p>
+        <div class="path-tags">
+          <span class="tag tag-blue">RHOAI Operator</span>
+          <span class="tag tag-blue">DataScienceCluster</span>
+          <span class="tag tag-blue">OperatorHub</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="path-item">
+      <div class="path-num step-num-green">03</div>
+      <div class="path-content">
+        <h3>使用者管理與專案建立</h3>
+        <p>設定 OAuth Identity Provider，建立使用者群組，配置 Data Science 使用者/管理員群組，建立 Data Science Project 並分配資源配額。</p>
+        <div class="path-tags">
+          <span class="tag tag-green">OAuth / HTPasswd</span>
+          <span class="tag tag-green">Groups & RBAC</span>
+          <span class="tag tag-green">ResourceQuota</span>
+          <span class="tag tag-green">Data Science Project</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="path-item">
+      <div class="path-num step-num-purple">04</div>
+      <div class="path-content">
+        <h3>Jupyter Notebook 工作環境</h3>
+        <p>學習如何為使用者啟動 Jupyter Notebook 伺服器，選擇運算映像（Standard Data Science、PyTorch、TensorFlow），設定 PVC 持久化儲存，並掌握 GPU 資源申請。</p>
+        <div class="path-tags">
+          <span class="tag tag-purple">Jupyter</span>
+          <span class="tag tag-purple">PyTorch/TensorFlow</span>
+          <span class="tag tag-purple">PVC</span>
+          <span class="tag tag-orange">GPU 加速</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="path-item">
+      <div class="path-num step-num-orange">05</div>
+      <div class="path-content">
+        <h3>Data Science Pipelines (自動化流程)</h3>
+        <p>設定 Pipeline Server（需要 S3 儲存），使用 Kubeflow Pipelines SDK 建立 ML 訓練流程，並透過 RHOAI Dashboard 管理和監控 Pipeline 執行。</p>
+        <div class="path-tags">
+          <span class="tag tag-orange">Kubeflow Pipelines</span>
+          <span class="tag tag-orange">MinIO / S3</span>
+          <span class="tag tag-orange">Pipeline Server</span>
+          <span class="tag tag-blue">KFP SDK</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="path-item">
+      <div class="path-num step-num-cyan">06</div>
+      <div class="path-content">
+        <h3>模型部署與推論服務</h3>
+        <p>使用 KServe (Single-Model) 或 ModelMesh (Multi-Model) 部署訓練好的模型，建立 InferenceService，設定 Route 提供 REST/gRPC API，並監控推論服務效能。</p>
+        <div class="path-tags">
+          <span class="tag tag-cyan">KServe</span>
+          <span class="tag tag-cyan">ModelMesh</span>
+          <span class="tag tag-cyan">InferenceService</span>
+          <span class="tag tag-green">REST API</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- CORE COMPONENTS -->
+<section id="components">
+  <div class="section-header">
+    <div class="section-tag">核心元件</div>
+    <h2>RHOAI 主要功能模組</h2>
+    <p>每個元件解決 MLOps 生命週期中的特定問題</p>
+  </div>
+
+  <div class="component-grid">
+    <div class="component-card cc-red">
+      <div class="comp-icon">🖥️</div>
+      <h3>RHOAI Dashboard</h3>
+      <p>統一的 Web 介面，讓使用者管理 Notebook、Pipeline、Model Serving 及資料連線，無需接觸底層 Kubernetes API。</p>
+      <a href="docs/02-install-rhoai.html" class="comp-link">查看安裝步驟 →</a>
+    </div>
+    <div class="component-card cc-purple">
+      <div class="comp-icon">📓</div>
+      <h3>Jupyter Notebook</h3>
+      <p>基於 JupyterHub 的多使用者 Notebook，支援 Standard Data Science、PyTorch、TensorFlow、Code Server 等映像，可申請 GPU。</p>
+      <a href="docs/04-jupyter-notebooks.html" class="comp-link">查看設定方式 →</a>
+    </div>
+    <div class="component-card cc-orange">
+      <div class="comp-icon">🔄</div>
+      <h3>Data Science Pipelines</h3>
+      <p>基於 Kubeflow Pipelines 的 ML 工作流程引擎，使用 Python SDK 定義可重複執行的資料前處理、訓練與評估流水線。</p>
+      <a href="docs/05-pipelines.html" class="comp-link">查看 Pipeline 教學 →</a>
+    </div>
+    <div class="component-card cc-cyan">
+      <div class="comp-icon">🚀</div>
+      <h3>KServe (模型服務)</h3>
+      <p>適合大型模型與 LLM 的單模型服務框架，支援 scale-to-zero、GPU 加速、多版本流量切分，提供標準 REST/gRPC 推論 API。</p>
+      <a href="docs/06-model-serving.html" class="comp-link">查看部署方式 →</a>
+    </div>
+    <div class="component-card cc-blue">
+      <div class="comp-icon">🧮</div>
+      <h3>ModelMesh (多模型服務)</h3>
+      <p>適合部署大量中小型模型，多模型共享同一伺服器，有效節省資源。支援 ONNX、OpenVINO、Triton、MLServer 等框架。</p>
+      <a href="docs/06-model-serving.html" class="comp-link">查看設定教學 →</a>
+    </div>
+    <div class="component-card cc-green">
+      <div class="comp-icon">🔍</div>
+      <h3>TrustyAI</h3>
+      <p>AI 可信度工具，提供模型偏差偵測、公平性分析、可解釋性報告，協助確保 AI 模型符合企業治理要求。</p>
+      <a href="docs/07-trustyai.html" class="comp-link">查看功能說明 →</a>
+    </div>
+  </div>
+</section>
+
+<!-- QUICK COMMANDS -->
+<section id="commands" style="background: var(--bg-secondary); max-width: 100%; padding: 4rem 2rem; margin:0;">
+<div style="max-width:1200px; margin:0 auto;">
+  <div class="section-header">
+    <div class="section-tag">快速指令</div>
+    <h2>常用 oc 指令速查</h2>
+    <p>在 CRC 環境中操作 OCP AI Platform 的核心指令</p>
+  </div>
+
+  <div class="cmd-grid">
+    <div class="cmd-card">
+      <div class="cmd-header">
+        <span class="cmd-title">🔐 登入與環境設定</span>
+        <div class="cmd-dots"><span class="dot-r"></span><span class="dot-y"></span><span class="dot-g"></span></div>
+      </div>
+      <div class="cmd-body">
+        <div class="cmd-line"><span class="comment"># 設定 CRC 環境變數</span></div>
+        <div class="cmd-line"><span class="prompt">$ </span><span class="cmd">eval</span> <span class="arg">$(crc oc-env)</span></div>
+        <div class="cmd-line"><span class="comment"># 以 admin 登入</span></div>
+        <div class="cmd-line"><span class="prompt">$ </span><span class="cmd">oc login</span> <span class="flag">-u</span> <span class="arg">kubeadmin</span> <span class="flag">-p</span> <span class="arg">$(crc console --credentials | grep kubeadmin | awk '{print $NF}')</span></div>
+        <div class="cmd-line"><span class="comment"># 查看目前叢集資訊</span></div>
+        <div class="cmd-line"><span class="prompt">$ </span><span class="cmd">oc cluster-info</span></div>
+      </div>
+    </div>
+
+    <div class="cmd-card">
+      <div class="cmd-header">
+        <span class="cmd-title">📦 安裝 RHOAI Operator</span>
+        <div class="cmd-dots"><span class="dot-r"></span><span class="dot-y"></span><span class="dot-g"></span></div>
+      </div>
+      <div class="cmd-body">
+        <div class="cmd-line"><span class="comment"># 建立 Operator Namespace</span></div>
+        <div class="cmd-line"><span class="prompt">$ </span><span class="cmd">oc apply</span> <span class="flag">-f</span> <span class="arg">manifests/01-rhoai-subscription.yaml</span></div>
+        <div class="cmd-line"><span class="comment"># 監看 Operator 安裝狀態</span></div>
+        <div class="cmd-line"><span class="prompt">$ </span><span class="cmd">oc get</span> <span class="arg">csv</span> <span class="flag">-n</span> <span class="arg">redhat-ods-operator</span></div>
+        <div class="cmd-line"><span class="comment"># 建立 DataScienceCluster</span></div>
+        <div class="cmd-line"><span class="prompt">$ </span><span class="cmd">oc apply</span> <span class="flag">-f</span> <span class="arg">manifests/02-datasciencecluster.yaml</span></div>
+      </div>
+    </div>
+
+    <div class="cmd-card">
+      <div class="cmd-header">
+        <span class="cmd-title">👥 使用者管理</span>
+        <div class="cmd-dots"><span class="dot-r"></span><span class="dot-y"></span><span class="dot-g"></span></div>
+      </div>
+      <div class="cmd-body">
+        <div class="cmd-line"><span class="comment"># 建立 HTPasswd 使用者</span></div>
+        <div class="cmd-line"><span class="prompt">$ </span><span class="cmd">htpasswd</span> <span class="flag">-c -B</span> <span class="arg">htpasswd.txt user1</span></div>
+        <div class="cmd-line"><span class="comment"># 建立 Secret</span></div>
+        <div class="cmd-line"><span class="prompt">$ </span><span class="cmd">oc create secret generic</span> <span class="arg">htpasswd-secret</span> <span class="flag">--from-file</span><span class="arg">=htpasswd=htpasswd.txt</span> <span class="flag">-n</span> <span class="arg">openshift-config</span></div>
+        <div class="cmd-line"><span class="comment"># 查看使用者列表</span></div>
+        <div class="cmd-line"><span class="prompt">$ </span><span class="cmd">oc get users</span></div>
+      </div>
+    </div>
+
+    <div class="cmd-card">
+      <div class="cmd-header">
+        <span class="cmd-title">🔍 監控 RHOAI Pod 狀態</span>
+        <div class="cmd-dots"><span class="dot-r"></span><span class="dot-y"></span><span class="dot-g"></span></div>
+      </div>
+      <div class="cmd-body">
+        <div class="cmd-line"><span class="comment"># 查看 RHOAI 應用 Pod</span></div>
+        <div class="cmd-line"><span class="prompt">$ </span><span class="cmd">oc get pods</span> <span class="flag">-n</span> <span class="arg">redhat-ods-applications</span></div>
+        <div class="cmd-line"><span class="comment"># 查看 DataScienceCluster 狀態</span></div>
+        <div class="cmd-line"><span class="prompt">$ </span><span class="cmd">oc get</span> <span class="arg">datasciencecluster</span></div>
+        <div class="cmd-line"><span class="comment"># 取得 RHOAI Dashboard URL</span></div>
+        <div class="cmd-line"><span class="prompt">$ </span><span class="cmd">oc get route</span> <span class="arg">rhods-dashboard</span> <span class="flag">-n</span> <span class="arg">redhat-ods-applications</span> <span class="flag">-o</span> <span class="arg">jsonpath='{.spec.host}'</span></div>
+        <div class="cmd-line"><span class="output">rhods-dashboard-redhat-ods-applications.apps-crc.testing</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <p style="margin-bottom:0.5rem;">
+    📚 OCP AI Platform 教學材料 &nbsp;|&nbsp; 
+    基於 <a href="https://docs.redhat.com/en/documentation/red_hat_openshift_ai_self-managed" target="_blank">Red Hat OpenShift AI</a> 官方文件
+  </p>
+  <p>環境：OpenShift Local (CRC) &nbsp;·&nbsp; 指令：<code style="font-family:monospace; background:rgba(255,255,255,0.1); padding:2px 6px; border-radius:4px;">eval $(crc oc-env)</code></p>
+</footer>
+
+</body>
+</html>

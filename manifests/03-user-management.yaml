@@ -1,0 +1,102 @@
+---
+# ── HTPasswd OAuth Identity Provider ──
+apiVersion: config.openshift.io/v1
+kind: OAuth
+metadata:
+  name: cluster
+spec:
+  identityProviders:
+  - name: htpasswd
+    mappingMethod: claim
+    type: HTPasswd
+    htpasswd:
+      fileData:
+        name: htpasswd-secret
+---
+# ── 資料科學使用者群組 ──
+apiVersion: user.openshift.io/v1
+kind: Group
+metadata:
+  name: ds-users
+users:
+  - user1
+  - user2
+  - user3
+---
+# ── 資料科學管理員群組 ──
+apiVersion: user.openshift.io/v1
+kind: Group
+metadata:
+  name: ds-admins
+users:
+  - ds-admin1
+---
+# ── Data Science Project (Namespace) ──
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: weather-ml-project
+  annotations:
+    openshift.io/description: "氣象 AI/ML 專案"
+    openshift.io/display-name: "Weather ML Project"
+  labels:
+    # 這個標籤讓 RHOAI 識別此為 Data Science Project
+    opendatahub.io/dashboard: "true"
+---
+# ── 資源配額 ──
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: ds-project-quota
+  namespace: weather-ml-project
+spec:
+  hard:
+    # CPU 限制
+    requests.cpu: "16"
+    limits.cpu: "32"
+    # 記憶體限制
+    requests.memory: "32Gi"
+    limits.memory: "64Gi"
+    # Pod 數量限制
+    pods: "20"
+    # PVC 數量限制
+    persistentvolumeclaims: "10"
+    # 儲存容量限制
+    requests.storage: "500Gi"
+    # GPU 限制（若有 GPU 節點）
+    requests.nvidia.com/gpu: "2"
+    limits.nvidia.com/gpu: "2"
+---
+# ── LimitRange (Pod 預設資源) ──
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: ds-project-limits
+  namespace: weather-ml-project
+spec:
+  limits:
+  - type: Container
+    default:
+      cpu: "1"
+      memory: "2Gi"
+    defaultRequest:
+      cpu: "100m"
+      memory: "256Mi"
+    max:
+      cpu: "8"
+      memory: "16Gi"
+---
+# ── RBAC：給 user1 編輯權限 ──
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: user1-edit
+  namespace: weather-ml-project
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: edit
+subjects:
+- kind: User
+  name: user1
+  apiGroup: rbac.authorization.k8s.io

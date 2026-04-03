@@ -1,0 +1,50 @@
+apiVersion: datasciencecluster.opendatahub.io/v1
+kind: DataScienceCluster
+metadata:
+  name: default-dsc
+spec:
+  components:
+    # ── 使用者介面 ──
+    dashboard:
+      managementState: Managed
+
+    # ── Jupyter Notebook 工作台 ──
+    workbenches:
+      managementState: Managed
+
+    # ── ML Pipeline (Kubeflow Pipelines) ──
+    datasciencepipelines:
+      managementState: Managed
+
+    # ── 模型服務 ──
+    kserve:
+      managementState: Managed
+      serving:
+        ingressGateway:
+          certificate:
+            type: SelfSigned
+        managementState: Managed
+        name: knative-serving
+
+    modelmeshserving:
+      managementState: Managed
+
+    # ── AI 可信度工具 ──
+    trustyai:
+      managementState: Managed
+
+    # ── 分散式訓練 ──
+    ray:
+      managementState: Managed
+
+    trainingoperator:
+      managementState: Managed
+
+    # ── 模型登錄 ──
+    modelregistry:
+      managementState: Managed
+      registriesNamespace: rhoai-model-registries
+
+    # ── 資料科學節點管理 ──
+    datasciencesmcp:
+      managementState: Managed
