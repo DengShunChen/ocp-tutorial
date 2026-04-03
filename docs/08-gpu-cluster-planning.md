@@ -19,6 +19,8 @@
 9. [監控與告警](#9-監控與告警)
 10. [與 CRC 環境的差異對照](#10-與-crc-環境的差異對照)
 
+**相關文件** → [模組 09：從 SLURM GPU 叢集遷移至 OCP — 安裝與遷移指南](09-slurm-to-ocp-gpu-migration.md)（若你目前是 SLURM 環境、要改裝為 OCP，請從該篇依序執行。）
+
 ---
 
 ## 1. 叢集架構總覽
@@ -890,4 +892,4 @@ env:
 
 ---
 
-> 📌 **下一步**：完成此規劃後，建議先在 CRC 環境驗證 RHOAI 的操作流程 (Module 01-07)，確認團隊熟悉操作後，再正式部署生產 GPU 叢集。
+> 📌 **下一步**：完成此規劃後，建議先在 CRC 環境驗證 RHOAI 的操作流程 (Module 01-07)，確認團隊熟悉操作後，再正式部署生產 GPU 叢集。若你要將**既有 SLURM GPU 叢集**改為 OCP，請接著閱讀 [09-slurm-to-ocp-gpu-migration.md](09-slurm-to-ocp-gpu-migration.md)。

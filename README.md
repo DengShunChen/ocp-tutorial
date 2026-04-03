@@ -16,7 +16,9 @@ OCP/
 │   ├── 04-jupyter-notebooks.md   # 模組 04：Jupyter Notebook 工作環境
 │   ├── 05-pipelines.md           # 模組 05：Data Science Pipelines
 │   ├── 06-model-serving.md       # 模組 06：模型部署與推論服務
-│   └── 07-debugging-guide.md     # 模組 07：除錯程序與技巧
+│   ├── 07-debugging-guide.md     # 模組 07：除錯程序與技巧
+│   ├── 08-gpu-cluster-planning.md # 模組 08：生產環境 GPU 叢集規劃
+│   └── 09-slurm-to-ocp-gpu-migration.md # 模組 09：SLURM → OCP 安裝與遷移
 │
 ├── manifests/                    # OCP YAML 設定檔
 │   ├── 01-rhoai-subscription.yaml      # RHOAI Operator 訂閱
@@ -70,8 +72,9 @@ open index.html
 | [06](docs/06-model-serving.md) | 模型部署與推論服務 | 90 分鐘 |
 | [07](docs/07-debugging-guide.md) | 除錯程序與技巧 | 30 分鐘 |
 | [08](docs/08-gpu-cluster-planning.md) | 🆕 生產環境 GPU 叢集規劃 | 60 分鐘 |
+| [09](docs/09-slurm-to-ocp-gpu-migration.md) | SLURM GPU 叢集改採 OCP：安裝與遷移 | 90 分鐘 |
 
-**估計總學習時間：8-9 小時**
+**估計總學習時間：9-11 小時**
 
 ---
 
