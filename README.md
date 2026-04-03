@@ -69,8 +69,9 @@ open index.html
 | [05](docs/05-pipelines.md) | Data Science Pipelines | 90 分鐘 |
 | [06](docs/06-model-serving.md) | 模型部署與推論服務 | 90 分鐘 |
 | [07](docs/07-debugging-guide.md) | 除錯程序與技巧 | 30 分鐘 |
+| [08](docs/08-gpu-cluster-planning.md) | 🆕 生產環境 GPU 叢集規劃 | 60 分鐘 |
 
-**估計總學習時間：7-8 小時**
+**估計總學習時間：8-9 小時**
 
 ---
 
