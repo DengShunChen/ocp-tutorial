@@ -18,7 +18,7 @@ spec:
 
     # ── 模型服務 ──
     kserve:
-      managementState: Managed
+      managementState: Removed
       serving:
         ingressGateway:
           certificate:
@@ -27,18 +27,18 @@ spec:
         name: knative-serving
 
     modelmeshserving:
-      managementState: Managed
+      managementState: Removed
 
     # ── AI 可信度工具 ──
     trustyai:
-      managementState: Managed
+      managementState: Removed
 
     # ── 分散式訓練 ──
     ray:
-      managementState: Managed
+      managementState: Removed
 
     trainingoperator:
-      managementState: Managed
+      managementState: Removed
 
     # ── 模型登錄 ──
     modelregistry:

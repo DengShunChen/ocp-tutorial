@@ -15,7 +15,8 @@ OCP/
 │   ├── 03-user-management.md     # 模組 03：使用者管理
 │   ├── 04-jupyter-notebooks.md   # 模組 04：Jupyter Notebook 工作環境
 │   ├── 05-pipelines.md           # 模組 05：Data Science Pipelines
-│   └── 06-model-serving.md       # 模組 06：模型部署與推論服務
+│   ├── 06-model-serving.md       # 模組 06：模型部署與推論服務
+│   └── 07-debugging-guide.md     # 模組 07：除錯程序與技巧
 │
 ├── manifests/                    # OCP YAML 設定檔
 │   ├── 01-rhoai-subscription.yaml      # RHOAI Operator 訂閱
@@ -67,6 +68,7 @@ open index.html
 | [04](docs/04-jupyter-notebooks.md) | Jupyter Notebook 工作環境 | 60 分鐘 |
 | [05](docs/05-pipelines.md) | Data Science Pipelines | 90 分鐘 |
 | [06](docs/06-model-serving.md) | 模型部署與推論服務 | 90 分鐘 |
+| [07](docs/07-debugging-guide.md) | 除錯程序與技巧 | 30 分鐘 |
 
 **估計總學習時間：7-8 小時**
 
