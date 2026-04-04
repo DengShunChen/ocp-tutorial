@@ -55,8 +55,6 @@ spec:
       managementState: Removed
 ```
 
-```
-
 ---
 
 ## 3. 案例分析：Node Eviction (節點驅逐 - 硬碟不足)
@@ -168,6 +166,52 @@ OpenShift 基礎設施所使用的映像檔 (如 CSI Driver 或 Operator Image) 
 # 檢查群組成員
 oc get groups rhoai-users -o yaml
 ```
+
+---
+
+## 10. 案例分析：OpenShift Local (CRC) 本機 kubeconfig 空白
+
+### 現象
+
+- `crc start` 末尾出現：`Failed to update kubeconfig file: Not able to get user CA: admin user is not found in kubeconfig ~/.crc/machines/crc/kubeconfig`。
+- `crc status` 顯示 **OpenShift: Unreachable**，但 **CRC VM: Running**。
+- `crcd.log` 可能出現：`cannot get OpenShift status: invalid configuration: no configuration has been provided`。
+- `~/.crc/machines/crc/kubeconfig` 內容異常：`clusters`、`contexts`、`users` 為 `null`（空殼）。
+
+### 真因（精要）
+
+問題在 **Mac 上的 kubeconfig 檔損壞或被清空**，不是叢集一定掛了。CRC 在 VM 內仍使用 **`/opt/kubeconfig`** 透過 SSH 操作；若該檔正常，API 與 `oc get nodes` 在 VM 內可成功，但本機因沒有有效 `admin` user 無法合併／更新 kubeconfig，`crc status` 與 `crc generate-kubeconfig` 都會讀到空檔而失敗。
+
+### 快速修復（無需 `crc delete`）
+
+VM 能 SSH 時，從 VM 拉回官方 kubeconfig 覆寫本機路徑：
+
+```bash
+ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+  -i ~/.crc/machines/crc/id_ed25519 -p 2222 core@127.0.0.1 \
+  'sudo cat /opt/kubeconfig' > ~/.crc/machines/crc/kubeconfig
+chmod 600 ~/.crc/machines/crc/kubeconfig
+crc status
+```
+
+預期 `OpenShift` 變回 **Running**。
+
+### 日誌與指令備忘
+
+- 目前 CRC CLI **沒有** `crc logs`；改看本機檔案：
+  - `~/.crc/crc.log`
+  - `~/.crc/crcd.log`
+  - `~/.crc/machines/crc/vfkit.log`
+- 需要更細輸出時：`crc start --log-level debug`（或全域 `crc --log-level debug …`）。
+
+### 相關線索（可並行追）
+
+- `crc.log` 裡若出現 **ClusterVersion** 訊息如 `image-registry is not available`，屬叢集內 Operator 問題，與「本機 kubeconfig 空白」分開處理（`oc get co image-registry` 等）。
+- `crcd.log` 若出現 **crc-admin-helper** `input rejected`，可能與本機 `/etc/hosts` 或 helper 權限有關；仍應先確認 `api.crc.testing` 是否解析到 `127.0.0.1`。
+
+### 仍無法恢復時
+
+依序考慮：`crc stop` 後再 `crc start`；仍失敗則 `crc delete` 後重建實例（會清空 VM 狀態）。
 
 ---
 
