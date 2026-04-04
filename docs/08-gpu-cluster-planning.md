@@ -19,7 +19,7 @@
 9. [監控與告警](#9-監控與告警)
 10. [與 CRC 環境的差異對照](#10-與-crc-環境的差異對照)
 
-**相關文件** → [模組 09：從 SLURM GPU 叢集遷移至 OCP — 安裝與遷移指南](09-slurm-to-ocp-gpu-migration.md)（若你目前是 SLURM 環境、要改裝為 OCP，請從該篇依序執行。）
+**相關文件** → [模組 09：從 SLURM GPU 叢集遷移至 OCP — 安裝與遷移指南](09-slurm-to-ocp-gpu-migration.md)（若你目前是 SLURM 環境、要改裝為 OCP，請從該篇依序執行。）｜[模組 10：OCP 架構下如何研發](10-ocp-architecture-rd.md)（平台就緒後的研發路線：CorrDiff、LLM、GPU 運算、ML 流程、OpenClaw 等。）
 
 ---
 
@@ -892,4 +892,4 @@ env:
 
 ---
 
-> 📌 **下一步**：完成此規劃後，建議先在 CRC 環境驗證 RHOAI 的操作流程 (Module 01-07)，確認團隊熟悉操作後，再正式部署生產 GPU 叢集。若你要將**既有 SLURM GPU 叢集**改為 OCP，請接著閱讀 [09-slurm-to-ocp-gpu-migration.md](09-slurm-to-ocp-gpu-migration.md)。
+> 📌 **下一步**：完成此規劃後，建議先在 CRC 環境驗證 RHOAI 的操作流程 (Module 01-07)，確認團隊熟悉操作後，再正式部署生產 GPU 叢集。若你要將**既有 SLURM GPU 叢集**改為 OCP，請接著閱讀 [09-slurm-to-ocp-gpu-migration.md](09-slurm-to-ocp-gpu-migration.md)。叢集與 RHOAI 就緒後，若要對齊實際研發場景（CorrDiff、LLM、GPU 運算、ML 開發流程、OpenClaw 等），請閱讀 [10-ocp-architecture-rd.md](10-ocp-architecture-rd.md)。

@@ -1,7 +1,7 @@
 # 模組 09：從 SLURM GPU 叢集遷移至 OpenShift (OCP) — 安裝與遷移指南
 
 > **前提**：你已有一台或多台在 **SLURM** 下運作的 GPU 叢集，目標改以 **OpenShift Container Platform (OCP)** 承載 GPU，並用 **Red Hat OpenShift AI (RHOAI)** 提供 Notebook／Pipeline／模型服務。  
-> **配套**：[08-gpu-cluster-planning.md](08-gpu-cluster-planning.md)（架構、GPU Operator、Kueue、網路細節）。
+> **配套**：[08-gpu-cluster-planning.md](08-gpu-cluster-planning.md)（架構、GPU Operator、Kueue、網路細節）。遷移完成後若要對齊實際研發場景，見 [10-ocp-architecture-rd.md](10-ocp-architecture-rd.md)。
 
 ---
 

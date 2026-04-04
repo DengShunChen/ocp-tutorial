@@ -18,7 +18,8 @@ OCP/
 │   ├── 06-model-serving.md       # 模組 06：模型部署與推論服務
 │   ├── 07-debugging-guide.md     # 模組 07：除錯程序與技巧
 │   ├── 08-gpu-cluster-planning.md # 模組 08：生產環境 GPU 叢集規劃
-│   └── 09-slurm-to-ocp-gpu-migration.md # 模組 09：SLURM → OCP 安裝與遷移
+│   ├── 09-slurm-to-ocp-gpu-migration.md # 模組 09：SLURM → OCP 安裝與遷移
+│   └── 10-ocp-architecture-rd.md # 模組 10：OCP 架構下如何研發
 │
 ├── manifests/                    # OCP YAML 設定檔
 │   ├── 01-rhoai-subscription.yaml      # RHOAI Operator 訂閱
@@ -73,8 +74,9 @@ open index.html
 | [07](docs/07-debugging-guide.md) | 除錯程序與技巧 | 30 分鐘 |
 | [08](docs/08-gpu-cluster-planning.md) | 🆕 生產環境 GPU 叢集規劃 | 60 分鐘 |
 | [09](docs/09-slurm-to-ocp-gpu-migration.md) | SLURM GPU 叢集改採 OCP：安裝與遷移 | 90 分鐘 |
+| [10](docs/10-ocp-architecture-rd.md) | OCP 架構下如何研發（CorrDiff／LLM／GPU／ML／OpenClaw） | 45 分鐘 |
 
-**估計總學習時間：9-11 小時**
+**估計總學習時間：10-12 小時**
 
 ---
 
