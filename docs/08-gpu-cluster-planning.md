@@ -162,7 +162,69 @@ ssh -L 8443:api.cluster.example.com:6443 admin@login-node
 
 ## 3. 網路架構設計
 
-### 3.1 多網路設計
+### 3.1 網路拓樸圖（邏輯視圖）
+
+下列圖示與 [§1.1 架構拓撲圖](#11-架構拓撲圖) 一致，補強 **Control Plane、GPU Worker、儲存** 在各網路平面上的關係。實體機櫃／ToR 層級請以機房設計為準。
+
+> **檢視方式**：GitHub、GitLab、VS Code（Mermaid 外掛）或站內 HTML 圖表頁可渲染；純文字閱讀器請搭配 §1.1 ASCII 圖。
+
+```mermaid
+flowchart TB
+  subgraph EXT["External"]
+    U[("使用者 / CI / VPN")]
+  end
+
+  subgraph MGMT["Management Network · 10 / 25 GbE"]
+    LN["Login Node<br/>Bastion"]
+    C1["Control Plane 1"]
+    C2["Control Plane 2"]
+    C3["Control Plane 3"]
+    INF["Infra（可選）"]
+    GM1["GPU-01<br/>mgmt NIC"]
+    GM2["GPU-02<br/>mgmt NIC"]
+    GM8["GPU-08 …<br/>mgmt NIC"]
+  end
+
+  subgraph HS["GPU / Storage Network · 100 GbE / IB HDR"]
+    GH1["GPU-01<br/>data NIC"]
+    GH2["GPU-02<br/>data NIC"]
+    GH8["GPU-08 …<br/>data NIC"]
+    ST1["Storage<br/>Ceph / NFS"]
+    ST2["Storage<br/>Lustre"]
+  end
+
+  subgraph POD["OpenShift Pod（概念）"]
+    P["GPU Pod"]
+    DEF["預設叢集網<br/>OVN-Kubernetes"]
+    MUL["Multus 附掛網<br/>§3.3"]
+  end
+
+  U --> LN
+  LN --> C1 & C2 & C3
+  C1 --- C2 --- C3
+  C1 & C2 & C3 --> INF
+
+  C1 & C2 & C3 -.->|"API Server ↔ kubelet<br/>節點註冊 / 監控"| GM1 & GM2 & GM8
+
+  GM1 --- GH1
+  GM2 --- GH2
+  GM8 --- GH8
+  GH1 <--> GH2
+  GH2 <--> GH8
+  GH1 & GH2 & GH8 --> ST1 & ST2
+
+  P --> DEF
+  P --> MUL
+  MUL -.->|"RDMA / NCCL<br/>資料平面"| GH1
+```
+
+| 連線類型 | 承載內容 |
+|:---|:---|
+| **Management** | `oc`/`kubectl`、API、節點與控制面信令、Ingress、一般監控與 SSH |
+| **GPU / Storage 高速網** | 跨節點 NCCL、分散式訓練、GPUDirect RDMA、大流量資料集／並行檔案系統 I/O |
+| **Pod 雙網（概念）** | 預設 Pod 網由叢集 CNI 提供；訓練 Pod 經 **Multus** 再掛高速網介面（見 §3.3 範例） |
+
+### 3.2 多網路設計
 
 生產環境 GPU 叢集需要 **至少 3 個獨立網路**：
 
@@ -182,7 +244,7 @@ ssh -L 8443:api.cluster.example.com:6443 admin@login-node
 └──────────────┴─────────────┴───────────────────────────┘
 ```
 
-### 3.2 OpenShift 多網路配置 (Multus)
+### 3.3 OpenShift 多網路配置 (Multus)
 
 OpenShift 使用 **Multus CNI** 支援多網路附掛，讓 GPU Pod 同時連接管理網路和高速網路：
 
@@ -225,7 +287,7 @@ spec:
         rdma/rdma_shared_device_a: 1  # RDMA 裝置
 ```
 
-### 3.3 GPUDirect RDMA
+### 3.4 GPUDirect RDMA
 
 A100 支援 **GPUDirect RDMA**，允許 GPU 直接透過 InfiniBand 讀寫遠端 GPU 記憶體，跳過 CPU：
 
