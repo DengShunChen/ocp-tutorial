@@ -74,7 +74,8 @@
     ┌──────────┐         ┌──────────┐
     │ Storage  │         │ Storage  │
     │ Server 1 │         │ Server 2 │
-    │(Ceph/NFS)│         │(Lustre)  │
+    │(Ceph/NFS)│         │ Lustre · │
+    │          │         │ WekaFS   │
     └──────────┘         └──────────┘
 ```
 
@@ -184,7 +185,9 @@ ssh -L 8443:api.cluster.example.com:6443 admin@login-node
 
 ### 3.1 網路拓樸圖（邏輯視圖）
 
-下列圖示與 [§1.1 架構拓撲圖](#11-架構拓撲圖) 一致，補強 **Control Plane、GPU Worker、儲存** 在各網路平面上的關係。實體機櫃／ToR 層級請以機房設計為準。
+下列圖示與 [§1.1 架構拓撲圖](#11-架構拓撲圖) 一致，補強 **Control Plane、GPU Worker、儲存** 在各網路平面上的關係。實體機櫃／ToR／Spine-Leaf 層級請以機房設計為準。
+
+**工程占位**：圖中 **VLAN、L3 CIDR、MTU、介面名稱** 為填表用範例，**部署前務必**與機房／網管對齊並替換；RoCE 環境需另確認 **PFC、ECN、DSCP** 與交換器佇列設定（本文不展開廠商 CLI）。
 
 > **檢視方式**：GitHub、GitLab、VS Code（Mermaid 外掛）或站內 HTML 圖表頁可渲染；純文字閱讀器請搭配 §1.1 ASCII 圖。
 
@@ -197,49 +200,49 @@ flowchart TB
   classDef zStore fill:#14532d,stroke:#052e16,color:#ecfdf5,stroke-width:1px
   classDef zPod fill:#5b21b6,stroke:#3b0764,color:#faf5ff,stroke-width:1px
 
-  subgraph Z0["① 外部區 · North-South"]
-    U[/"使用者 · CI/CD · VPN"/]
+  subgraph Z0["① UNTRUST / N-S · 外部"]
+    U[/"使用者 · CI/CD · VPN<br/>公網或專線 · 與 MGMT 路由策略由邊界防火牆決定"/]
   end
 
-  subgraph Z1["② 邊界 · 營運入口"]
-    LN["Login / Bastion<br/>SSH · oc · kubeconfig · 自動化"]
+  subgraph Z1["② DMZ / 營運入口 · 雙掛或單掛至 MGMT"]
+    LN["Login / Bastion<br/>例 ens1f0 · 10.10.0.10/22 · GW 10.10.0.1<br/>SSH · oc · kubeconfig · 自動化"]
   end
 
-  subgraph Z2["③ 管理平面 · Management · 10 / 25 GbE"]
-    subgraph CP["Kubernetes Control Plane（HA）"]
+  subgraph Z2["③ MGMT 平面 · 10/25 GbE · 例 VLAN 10 · 10.10.0.0/22 · MTU 1500"]
+    subgraph CP["Control Plane（HA）· API VIP 例 10.10.1.100:6443"]
       direction LR
-      C1("apiserver · etcd · ①")
-      C2("②")
-      C3("③")
+      C1("Master① · etcd")
+      C2("Master②")
+      C3("Master③")
     end
-    INF["Cluster Ingress / Registry / Monitoring<br/>Infra 節點（可選）"]
-    GM["GPU Worker ×8 — 網管介面 vNIC"]
+    INF["Ingress / Registry / Monitoring<br/>Infra 節點（可選）· 同 MGMT 或獨立 L3"]
+    GM["GPU Worker ×8 — 網管 vNIC<br/>例 ens2f0 · VLAN10 · 10.10.48.0/24"]
   end
 
-  subgraph Z3["④ 資料平面 · GPU Interconnect · 100 GbE / IB HDR"]
-    subgraph MESH["East-West · NCCL / RDMA（示意全互連）"]
+  subgraph Z3["④ DATA 平面 · 100 GbE / IB HDR · 例 VLAN 20 或無標籤 L3 · MTU 9000"]
+    subgraph MESH["East-West · NCCL / GPUDirect · Spine-Leaf 省略"]
       direction LR
-      G1["GPU-01<br/>data NIC"]
-      G2["GPU-02"]
+      G1["GPU-01 data<br/>例 p2p1 · 10.20.1.11/23"]
+      G2["GPU-02<br/>10.20.1.12"]
       GX["…"]
-      G8["GPU-08<br/>data NIC"]
+      G8["GPU-08<br/>10.20.1.18"]
     end
-    ST1[("Ceph / NFS<br/>Block · File")]
-    ST2[("Lustre / 並行檔案系統<br/>Dataset I/O")]
+    ST1[("Block / File 後端<br/>Ceph / NFS · VIP 例 10.20.8.0/24<br/>iSCSI/NFS 埠由儲存團隊定義")]
+    ST2[("並行檔案 · Dataset 層<br/>Lustre · WekaFS · GPFS / BeeGFS<br/>客戶端建議走本平面 + RDMA 能力")]
   end
 
-  subgraph Z4["⑤ 邏輯視圖 · Pod 雙網（概念）"]
+  subgraph Z4["⑤ 邏輯附掛 · Pod 雙網（與實體 L2 對照用）"]
     direction LR
     P["GPU Workload Pod"]
-    DEF["Primary CNI<br/>OVN-Kubernetes"]
-    MUL["Secondary<br/>Multus · §3.3"]
+    DEF["Primary CNI<br/>OVN-K8s · ClusterIP/Route"]
+    MUL["Secondary NAD<br/>Multus · §3.3<br/>對應主機 data PF/VF"]
   end
 
   U --> LN
   LN --> C1 & C2 & C3
   C1 --- C2 --- C3
   C1 & C2 & C3 --> INF
-  C1 & C2 & C3 -.->|"apiserver ↔ kubelet<br/>CSR · 監控 · 日誌"| GM
+  C1 & C2 & C3 -.->|"TCP 6443 / 10250 等<br/>apiserver ↔ kubelet"| GM
 
   GM --- G1 & G2 & GX & G8
   G1 <--> G2
@@ -250,7 +253,7 @@ flowchart TB
 
   P --> DEF
   P --> MUL
-  MUL -.->|"Pod 次要介面<br/>RDMA · NCCL 資料路徑"| G1
+  MUL -.->|"secondary net<br/>RDMA · NCCL 資料路徑"| G1
 
   class U,LN zEdge
   class C1,C2,C3,INF,GM zMgmt
@@ -259,10 +262,21 @@ flowchart TB
   class P,DEF,MUL zPod
 ```
 
+**工程參數對照（占位 — 請替換為實際設計）**
+
+| 平面 | VLAN（例） | L3（例） | MTU | LAG / 備註 |
+|:---|:---|:---|:---|:---|
+| **MGMT** | 10 | 10.10.0.0/22 | 1500 | API、節點管理、Ingress 控制路徑；**api / api-int / *.apps** DNS 指到此平面或 LB |
+| **DATA（GPU + 並行 FS 客戶端）** | 20 或無 | 10.20.0.0/23 | 9000 | NCCL、GPUDirect、**WekaFS / Lustre** 等讀寫；RoCE 需 **PFC/ECN** 與交換器一致設定 |
+| **STORAGE（若與 DATA 分離）** | 30 | 10.30.0.0/24 | 9000 | 僅在 **Ceph 前網 / NFS / iSCSI** 獨立拉線時使用；否則可併入 DATA 列 |
+| **BGP Underlay（可選）** | — | 各 /30 或 /31 | 9000 | Leaf-Spine 若跑 eBGP，**ASN** 用私用區段（例 4200000000–4294967294 或 4-Byte private）；細節依機房標準 |
+
+> **圖上 GM → GPU data 節點**：表示 **同一台 Worker 上** 網管埠與資料埠（或 bond / VF）的對應，**不是**跨路由器的 L3 一跳；實際介面名稱以 `ip link`／安裝程式輸出為準。
+
 | 連線類型 | 承載內容 |
 |:---|:---|
 | **Management** | `oc`/`kubectl`、API、節點與控制面信令、Ingress、一般監控與 SSH |
-| **GPU / Storage 高速網** | 跨節點 NCCL、分散式訓練、GPUDirect RDMA、大流量資料集／並行檔案系統 I/O |
+| **GPU / Storage 高速網** | 跨節點 NCCL、分散式訓練、GPUDirect RDMA、大流量資料集／**WekaFS、Lustre** 等並行檔案 I/O |
 | **Pod 雙網（概念）** | 預設 Pod 網由叢集 CNI 提供；訓練 Pod 經 **Multus** 再掛高速網介面（見 §3.3 範例） |
 
 ### 3.2 多網路設計
@@ -281,9 +295,11 @@ flowchart TB
 │ API Server   │ Ceph / NFS  │ NCCL AllReduce            │
 │ Dashboard    │ PVC Mount   │ Distributed Training      │
 │ SSH / Admin  │ Dataset I/O │ Gradient Sync             │
-│ Monitoring   │ Model Store │ Multi-node GPU Comm       │
+│ Monitoring   │ Lustre/Weka │ Multi-node GPU Comm       │
 └──────────────┴─────────────┴───────────────────────────┘
 ```
+
+並行檔案層可選 **Lustre、WekaFS、GPFS、BeeGFS** 等（授權、支援合約與 CSI／掛載方式依廠商與叢集版本而定）。
 
 ### 3.3 OpenShift 多網路配置 (Multus)
 
@@ -374,7 +390,7 @@ GPUDirect：  GPU → NIC → Network → NIC → GPU  (CPU 不參與!)
 | **Control Plane ×3** | **DNS**（api、api-int、*.apps 等）、**VIP/LB**、開機／PXE、磁碟（**系統碟 + 獨立 etcd 碟**）、管理網 Bond | **kube-apiserver、etcd、scheduler、controller** 由安裝與 **MCO** 管理；日常**不**手改 master | 任一 Master 長期 **NotReady** 會影響 **API 可用度** → 全叢集卡住 |
 | **Infra（可選）** | 與一般 Worker 類似（無 GPU） | **Taint/Toleration** 讓 Ingress、Registry、監控等只排到此類節點（依組織政策） | 無 Infra 時，上述元件可落在 **GPU Worker**（不建議）或 **共用 Worker** |
 | **GPU Worker ×8** | 管理網 + **高速網（IB/RoCE）** 佈線、BMC、本地 **NVMe / Scratch**、GPU **韌體／驗證模式**、若用 host MOFED 則 **與 ClusterPolicy 對齊** | 節點 **Ready**、**§5.2** label/taint、**§6** NFD → GPU Operator → **ClusterPolicy**、可選 **MIG** label、**§3.3 Multus** 所需 **主機介面名稱**、**§7** Local PV 路徑與權限 | 設定錯誤時常見現象：**Unschedulable**、**驱动 Pod CrashLoop**、**無 nvidia.com/gpu**、**PVC 無法掛載** |
-| **儲存後端**（Ceph、NFS、Lustre、S3…） | 網段與 **防火牆** 允許 **Worker（或 CSI Pod 所在節點）** 存取 | 在叢集內部署 **CSI / Operator** 或 **OC Storage**，建立 **StorageClass**（**§7**）；之後 **PVC** 才會 **Bound** | 與 GPU **無直接驅動相依**，但 **有 PVC 的工作負載** 依賴儲存先好 |
+| **儲存後端**（Ceph、NFS、Lustre、**WekaFS**、S3…） | 網段與 **防火牆** 允許 **Worker（或 CSI Pod 所在節點）** 存取 | 在叢集內部署 **CSI / Operator** 或 **OC Storage**，建立 **StorageClass**（**§7**）；之後 **PVC** 才會 **Bound** | 與 GPU **無直接驅動相依**，但 **有 PVC 的工作負載** 依賴儲存先好 |
 
 #### 4.2.2 相依性（先後與前提）
 
@@ -662,11 +678,13 @@ oc describe node gpu-worker-08 | grep "nvidia.com/mig"
 
 | 用途 | 存取模式 | 容量需求 | I/O 特性 | 建議方案 |
 |:---|:---|:---|:---|:---|
-| **模型訓練數據集** | ReadOnlyMany (ROX) | 10~100 TB | 高吞吐量、循序讀取 | Lustre / GPFS / BeeGFS |
+| **模型訓練數據集** | ReadOnlyMany (ROX) | 10~100 TB | 高吞吐量、循序讀取 | Lustre / **WekaFS** / GPFS / BeeGFS |
 | **模型 Checkpoint** | ReadWriteOnce (RWO) | 1~10 TB/job | 突發大檔寫入 | NVMe Local Scratch |
 | **Notebook 工作目錄** | ReadWriteOnce (RWO) | 50~200 GB/user | 隨機 I/O | Ceph RBD |
 | **模型儲存/Registry** | ReadWriteMany (RWX) | 5~50 TB | 低 I/O、長期保存 | S3 (MinIO/Ceph RGW) |
 | **Pipeline Artifacts** | ReadWriteMany (RWX) | 1~5 TB | 中等 I/O | Ceph FS / NFS |
+
+**WekaFS 說明（可選方案）**：分散式並行檔案系統，常與 **NVMe 全快閃** 與 **高速網（RDMA）** 搭配，適合大規模訓練資料集與高併發讀；在 OpenShift 上多透過 **Weka 官方 CSI／Operator** 或 **節點級客戶端掛載後再暴露給 Pod**（依版本與支援矩陣），網路與 **§3.1 DATA 平面**、**MTU 9000** 需一併規劃。
 
 ### 7.2 StorageClass 配置
 
@@ -733,7 +751,7 @@ spec:
                                             │ (用戶工作目錄)  │
                                             └────────────────┘
          ┌─────────────────────────────────────────┐
-         │     Shared Dataset (Lustre / GPFS)      │
+         │    Shared Dataset (Lustre / WekaFS / GPFS)│
          │   /mnt/datasets  (ReadOnlyMany)          │
          │   ImageNet, Common Crawl, Custom Data    │
          └─────────────────────────────────────────┘
@@ -1036,7 +1054,7 @@ spec:
 | **GPU** | ❌ 無 | 64 × A100 80GB |
 | **磁碟** | 31 GiB | 120+ TB NVMe |
 | **網路** | NAT (單一) | 3 層分離 (管理/儲存/GPU) |
-| **儲存** | hostpath-provisioner | Ceph + NVMe + S3 |
+| **儲存** | hostpath-provisioner | Ceph + NVMe + S3（並行層可含 WekaFS / Lustre 等） |
 | **DSC 組件** | 精簡 (5 組件) | 全功能 (10+ 組件) |
 | **KServe** | Removed | ✅ Managed |
 | **Ray** | Removed | ✅ Managed |
