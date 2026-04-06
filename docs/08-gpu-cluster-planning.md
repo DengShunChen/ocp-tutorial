@@ -9,7 +9,7 @@
 ## 目錄
 
 1. [叢集架構總覽](#1-叢集架構總覽)
-2. [節點角色與硬體規格](#2-節點角色與硬體規格)（含 [§2.0 指令執行位置](#20-指令要在哪台機器執行)）
+2. [節點角色與硬體規格](#2-節點角色與硬體規格)（[§2.0 指令執行位置](#20-指令要在哪台機器執行)｜[§2.5 節點設定與相依](#25-各節點設定與相依關係)）
 3. [網路架構設計](#3-網路架構設計)
 4. [OpenShift 叢集規劃](#4-openshift-叢集規劃)
 5. [NVIDIA GPU Operator 部署](#5-nvidia-gpu-operator-部署)
@@ -179,6 +179,66 @@ ssh -L 8443:api.cluster.example.com:6443 admin@login-node
 | **RAM** | 1 TB | **8 TB** |
 | **NVMe Scratch** | ~15 TB | **~120 TB** |
 | **GPU 通訊頻寬** | 600 GB/s (NVSwitch 節點內) | 100/200 Gb/s (跨節點 IB/RoCE) |
+
+### 2.5 各節點設定與相依關係
+
+本節回答兩件事：**不同角色各自要做哪些設定**，以及**先後／前提（相依性）**為何。細部 YAML 見後續 §3～§7；此處為總表與順序心智模型。
+
+#### 2.5.1 分角色：設定項目一覽
+
+| 角色 | 機房／OS 層（Day-0） | 叢集／平台層（Day-1+） | 備註 |
+|:---|:---|:---|:---|
+| **Login Node** | RHEL 安裝、帳號與 **sudo** 政策、防火牆允許 **出站 → API VIP:6443**、可選 VPN | 安裝 **`oc`/Helm**、放置 **kubeconfig**、同步 **CA**、自動化 **SSH key** | **不**加入叢集；沒有 API 就無法在此用 `oc` |
+| **Control Plane ×3** | **DNS**（api、api-int、*.apps 等）、**VIP/LB**、開機／PXE、磁碟（**系統碟 + 獨立 etcd 碟**）、管理網 Bond | **kube-apiserver、etcd、scheduler、controller** 由安裝與 **MCO** 管理；日常**不**手改 master | 任一 Master 長期 **NotReady** 會影響 **API 可用度** → 全叢集卡住 |
+| **Infra（可選）** | 與一般 Worker 類似（無 GPU） | **Taint/Toleration** 讓 Ingress、Registry、監控等只排到此類節點（依組織政策） | 無 Infra 時，上述元件可落在 **GPU Worker**（不建議）或 **共用 Worker** |
+| **GPU Worker ×8** | 管理網 + **高速網（IB/RoCE）** 佈線、BMC、本地 **NVMe / Scratch**、GPU **韌體／驗證模式**、若用 host MOFED 則 **與 ClusterPolicy 對齊** | 節點 **Ready**、**§4.2** label/taint、**§5** NFD → GPU Operator → **ClusterPolicy**、可選 **MIG** label、**Multus** 所需 **主機介面名稱**、**Local PV** 路徑與權限 | 設定錯誤時常見現象：**Unschedulable**、**驱动 Pod CrashLoop**、**無 nvidia.com/gpu**、**PVC 無法掛載** |
+| **儲存後端**（Ceph、NFS、Lustre、S3…） | 網段與 **防火牆** 允許 **Worker（或 CSI Pod 所在節點）** 存取 | 在叢集內部署 **CSI / Operator** 或 **OC Storage**，建立 **StorageClass**；之後 **PVC** 才會 **Bound** | 與 GPU **無直接驅動相依**，但 **有 PVC 的工作負載** 依賴儲存先好 |
+
+#### 2.5.2 相依性（先後與前提）
+
+**硬相依（上一層不成立則下一層必敗）**
+
+1. **機房 L2/L3 + DNS + API VIP** → 否則 **安裝程式與 kubelet** 無法對齊叢集端點。  
+2. **Control Plane 就緒、API Server 健康** → 才有 **`oc`、CSR 簽署、節點加入**。  
+3. **GPU Worker `Ready`**（管理網通、kubelet 正常）→ 才能在其上跑 **GPU Operator 的 DaemonSet**（驅動、device plugin、DCGM）。  
+4. **NFD（建議先裝）** → 節點上才有穩定 **feature label**，利於 **NodeFeatureRule / GPU Operator** 選節點（見 §5）。  
+5. **ClusterPolicy / driver container 成功** → 節點才會回報 **`nvidia.com/gpu`**，`Pod` 才可請求 GPU。  
+6. **StorageClass + 後端連通** → 需要 **PVC** 的 Pod（Notebook、Registry、部分 Pipeline）才會 **Bound**。
+
+**軟相依（建議順序，便於除錯）**
+
+- **§4.2 label/taint** 宜在 **確認 GPU Operator 已把資源掛上節點** 之後再做，否則排程錯誤不易分辨是「沒 GPU」還是「被 taint 擋」。  
+- **§3.3 Multus** 依賴 **主機上實體介面已存在且名稱與 NAD 一致**（例如 `ib0`）；與 **OVN 預設 Pod 網** 獨立。  
+- **§6 RHOAI / DSC** 依賴 **Operator 來自 Catalog 可拉映像**、**Worker 有足夠 CPU/RAM**、**Ingress／Route** 可服務（常與 Infra 或節點角色有關）。  
+- **§8 Kueue** 依賴 **叢集已安裝 Kueue CRD**（通常由 RHOAI 或獨立 Operator 帶入），且 **ResourceQuota** 與團隊命名空間已建立。
+
+#### 2.5.3 相依關係圖（簡化）
+
+```mermaid
+flowchart LR
+  DC[機房網路 / DNS / VIP]
+  CP[Control Plane 就緒]
+  LN[Login + kubeconfig]
+  WK[GPU Worker Ready]
+  NFD[NFD]
+  GPU[GPU Operator + ClusterPolicy]
+  LAB[Label / Taint]
+  ST[儲存 CSI + StorageClass]
+  AI[RHOAI / 應用]
+
+  DC --> CP
+  CP --> LN
+  CP --> WK
+  WK --> NFD
+  NFD --> GPU
+  GPU --> LAB
+  CP --> ST
+  WK --> ST
+  LAB --> AI
+  ST --> AI
+```
+
+> **讀圖**：`ST`（儲存）與 `GPU` 分支可部分**並行**，但 **「會掛 PVC 的 GPU Job」** 必須兩邊都滿足。`LN` 僅代表**管理路徑**；實際運算與儲存資料流在 Worker 與儲存後端之間。
 
 ---
 
