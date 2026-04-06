@@ -189,53 +189,74 @@ ssh -L 8443:api.cluster.example.com:6443 admin@login-node
 > **檢視方式**：GitHub、GitLab、VS Code（Mermaid 外掛）或站內 HTML 圖表頁可渲染；純文字閱讀器請搭配 §1.1 ASCII 圖。
 
 ```mermaid
+%%{init: {'flowchart': {'curve': 'basis'}}}%%
 flowchart TB
-  subgraph EXT["External"]
-    U[("使用者 / CI / VPN")]
+  classDef zEdge fill:#1d4ed8,stroke:#1e40af,color:#eff6ff,stroke-width:2px
+  classDef zMgmt fill:#334155,stroke:#1e293b,color:#f1f5f9,stroke-width:1px
+  classDef zData fill:#9a3412,stroke:#7c2d12,color:#fff7ed,stroke-width:1px
+  classDef zStore fill:#14532d,stroke:#052e16,color:#ecfdf5,stroke-width:1px
+  classDef zPod fill:#5b21b6,stroke:#3b0764,color:#faf5ff,stroke-width:1px
+
+  subgraph Z0["① 外部區 · North-South"]
+    U[/"使用者 · CI/CD · VPN"/]
   end
 
-  subgraph MGMT["Management Network · 10 / 25 GbE"]
-    LN["Login Node<br/>Bastion"]
-    C1["Control Plane 1"]
-    C2["Control Plane 2"]
-    C3["Control Plane 3"]
-    INF["Infra（可選）"]
-    GM1["GPU-01<br/>mgmt NIC"]
-    GM2["GPU-02<br/>mgmt NIC"]
-    GM8["GPU-08 …<br/>mgmt NIC"]
+  subgraph Z1["② 邊界 · 營運入口"]
+    LN["Login / Bastion<br/>SSH · oc · kubeconfig · 自動化"]
   end
 
-  subgraph HS["GPU / Storage Network · 100 GbE / IB HDR"]
-    GH1["GPU-01<br/>data NIC"]
-    GH2["GPU-02<br/>data NIC"]
-    GH8["GPU-08 …<br/>data NIC"]
-    ST1["Storage<br/>Ceph / NFS"]
-    ST2["Storage<br/>Lustre"]
+  subgraph Z2["③ 管理平面 · Management · 10 / 25 GbE"]
+    subgraph CP["Kubernetes Control Plane（HA）"]
+      direction LR
+      C1("apiserver · etcd · ①")
+      C2("②")
+      C3("③")
+    end
+    INF["Cluster Ingress / Registry / Monitoring<br/>Infra 節點（可選）"]
+    GM["GPU Worker ×8 — 網管介面 vNIC"]
   end
 
-  subgraph POD["OpenShift Pod（概念）"]
-    P["GPU Pod"]
-    DEF["預設叢集網<br/>OVN-Kubernetes"]
-    MUL["Multus 附掛網<br/>§3.3"]
+  subgraph Z3["④ 資料平面 · GPU Interconnect · 100 GbE / IB HDR"]
+    subgraph MESH["East-West · NCCL / RDMA（示意全互連）"]
+      direction LR
+      G1["GPU-01<br/>data NIC"]
+      G2["GPU-02"]
+      GX["…"]
+      G8["GPU-08<br/>data NIC"]
+    end
+    ST1[("Ceph / NFS<br/>Block · File")]
+    ST2[("Lustre / 並行檔案系統<br/>Dataset I/O")]
+  end
+
+  subgraph Z4["⑤ 邏輯視圖 · Pod 雙網（概念）"]
+    direction LR
+    P["GPU Workload Pod"]
+    DEF["Primary CNI<br/>OVN-Kubernetes"]
+    MUL["Secondary<br/>Multus · §3.3"]
   end
 
   U --> LN
   LN --> C1 & C2 & C3
   C1 --- C2 --- C3
   C1 & C2 & C3 --> INF
+  C1 & C2 & C3 -.->|"apiserver ↔ kubelet<br/>CSR · 監控 · 日誌"| GM
 
-  C1 & C2 & C3 -.->|"API Server ↔ kubelet<br/>節點註冊 / 監控"| GM1 & GM2 & GM8
-
-  GM1 --- GH1
-  GM2 --- GH2
-  GM8 --- GH8
-  GH1 <--> GH2
-  GH2 <--> GH8
-  GH1 & GH2 & GH8 --> ST1 & ST2
+  GM --- G1 & G2 & GX & G8
+  G1 <--> G2
+  G2 <--> GX
+  GX <--> G8
+  G1 <--> G8
+  G1 & G2 & GX & G8 --> ST1 & ST2
 
   P --> DEF
   P --> MUL
-  MUL -.->|"RDMA / NCCL<br/>資料平面"| GH1
+  MUL -.->|"Pod 次要介面<br/>RDMA · NCCL 資料路徑"| G1
+
+  class U,LN zEdge
+  class C1,C2,C3,INF,GM zMgmt
+  class G1,G2,GX,G8 zData
+  class ST1,ST2 zStore
+  class P,DEF,MUL zPod
 ```
 
 | 連線類型 | 承載內容 |
