@@ -8,18 +8,29 @@
 
 ## 目錄
 
-1. [叢集架構總覽](#1-叢集架構總覽)
-2. [節點角色與硬體規格](#2-節點角色與硬體規格)（[§2.0 指令執行位置](#20-指令要在哪台機器執行)｜[§2.5 節點設定與相依](#25-各節點設定與相依關係)）
-3. [網路架構設計](#3-網路架構設計)
-4. [OpenShift 叢集規劃](#4-openshift-叢集規劃)
-5. [NVIDIA GPU Operator 部署](#5-nvidia-gpu-operator-部署)
-6. [RHOAI 完整部署配置](#6-rhoai-完整部署配置)
-7. [儲存架構設計](#7-儲存架構設計)
-8. [多租戶與 GPU 排程策略](#8-多租戶與-gpu-排程策略)
-9. [監控與告警](#9-監控與告警)
-10. [與 CRC 環境的差異對照](#10-與-crc-環境的差異對照)
+**建議閱讀順序**（由下而上對應「先想清楚架構與硬體 → 再談網路與作業方式 → 再裝叢集與 GPU → 儲存就緒後上平台與多租戶 → 最後監控與環境對照」）：
+
+1. [叢集架構總覽](#1-叢集架構總覽) — 拓樸與設計原則  
+2. [節點硬體與資源規格](#2-節點硬體與資源規格) — Login / Control / GPU Worker、資源加總  
+3. [網路架構設計](#3-網路架構設計) — 多平面、Multus、GPUDirect  
+4. [作業面：指令位置與節點相依](#4-作業面指令位置與節點相依關係) — 在哪台跑 `oc`、設定先後與相依圖  
+5. [OpenShift 叢集規劃](#5-openshift-叢集規劃) — 安裝方式、Label/Taint、MachineSet  
+6. [NVIDIA GPU Operator 部署](#6-nvidia-gpu-operator-部署) — NFD、ClusterPolicy、驗證、MIG  
+7. [儲存架構設計](#7-儲存架構設計) — 需求、StorageClass、資料流（**建議在 RHOAI 前具備 CSI／SC**）  
+8. [RHOAI 完整部署配置](#8-rhoai-完整部署配置) — DSC、Notebook 映像、Workbench 配額  
+9. [多租戶與 GPU 排程策略](#9-多租戶與-gpu-排程策略) — Kueue、Quota、PriorityClass  
+10. [監控與告警](#10-監控與告警) — DCGM、Grafana、PrometheusRule  
+11. [與 CRC 環境的差異對照](#11-與-crc-環境的差異對照)  
+- [附錄 A：除錯指令速查](#附錄-a-生產環境除錯指令速查)｜[附錄 B：成本估算](#附錄-b-成本估算參考)
 
 **相關文件** → [模組 09：從 SLURM GPU 叢集遷移至 OCP — 安裝與遷移指南](09-slurm-to-ocp-gpu-migration.md)（若你目前是 SLURM 環境、要改裝為 OCP，請從該篇依序執行。）｜[模組 10：OCP 架構下如何研發](10-ocp-architecture-rd.md)（平台就緒後的研發路線：CorrDiff、LLM、GPU 運算、ML 流程、OpenClaw 等。）
+
+### 編排說明（為何調整章節順序）
+
+- **硬體與容量（§2）先於網路與平台**：讀者先對「有哪些節點、各負責什麼」有具體數字，再讀 **§3 網路** 時較易對應管理網／高速網／儲存網。  
+- **§4 作業面獨立**：「在哪台執行 `oc`、各角色設定與相依」集中一處，避免與硬體表混在一起；文中交叉引用之 **§5～§10**（叢集、GPU、儲存、RHOAI、多租戶、監控）仍涵蓋**全部**原有 YAML／指令內容，**僅章號隨順序重編**；**§11** 為 CRC 對照。  
+- **GPU Operator（§6）後接儲存（§7）再接 RHOAI（§8）**：與實務上「節點可排程 GPU → PVC 可綁定 → Workbench／Pipeline 才穩」的除錯順序一致；**並未刪減**原 RHOAI 或儲存章節的任何段落。  
+- **多租戶（§9）→ 監控（§10）→ CRC 對照（§11）**：由治理與觀測收尾，附錄維持速查與成本。
 
 ---
 
@@ -79,22 +90,9 @@
 
 ---
 
-## 2. 節點角色與硬體規格
+## 2. 節點硬體與資源規格
 
-### 2.0 指令要在哪台機器執行？
-
-本文件所有 **`oc` / `kubectl` / `openshift-install`** 類指令，若未另註明，預設規則如下：
-
-| 執行環境 | 用途 | 典型指令 | 備註 |
-|:---|:---|:---|:---|
-| **Login Node（跳板機）** | 日常叢集管理、套用 YAML、除錯、CI runner | `oc apply`、`oc get`、`oc adm`、`helm` | **主要工作位置**；需安裝 `oc`、可連 **API VIP:6443**、`KUBECONFIG` 指向具 **cluster-admin**（或足夠 RBAC）的 kubeconfig |
-| **安裝用工作站／自動化主機** | **首次安裝** OpenShift（IPI / UPI / Agent） | `openshift-install create cluster`、`openshift-install wait-for` | 僅安裝階段；安裝完成後仍建議改在 **Login Node** 做日常操作 |
-| **開發者筆電** | 連線、隧道、瀏覽器開 Console | `ssh -L ...`、`curl` 測 API | **不**在筆電上對生產叢集執行大量 `oc apply`（除非 kubeconfig 與權限由組織允許且網路可達） |
-| **Control Plane（RHCOS）** | **不**作為日常 CLI 入口 | 僅在 Red Hat / 廠商支援指引下排查 `etcd`、`kubelet` | **勿**在 master 上習慣性跑 `oc` 或改叢集狀態 |
-| **GPU Worker（RHCOS）** | **不**執行 `oc apply` | 除錯用 `oc debug node/<name>`，或依政策 SSH 查 **NVIDIA / MOFED** | 應用與 Operator 由叢集排程，非人工 SSH 裝套件 |
-| **叢集內 Pod** | 驗證 GPU、看指標 | `oc exec ... -- nvidia-smi`、`dcgmi` | **觸發端**仍在 Login（或 CI）：你在外部下 `oc exec`，實際程式在 Pod 內跑 |
-
-**權限與網路**：多數範例需 **cluster-admin**。若使用 **Dedicated / ROSA**，部分 `openshift-*` namespace 可能受限，請改依雲端廠商文件操作。
+> 各節點上要跑哪些指令、`oc` 應從哪台執行，以及彼此相依順序，已集中至 [§4 作業面](#4-作業面指令位置與節點相依關係)。
 
 ### 2.1 Login Node (Bastion / 跳板機)
 
@@ -179,66 +177,6 @@ ssh -L 8443:api.cluster.example.com:6443 admin@login-node
 | **RAM** | 1 TB | **8 TB** |
 | **NVMe Scratch** | ~15 TB | **~120 TB** |
 | **GPU 通訊頻寬** | 600 GB/s (NVSwitch 節點內) | 100/200 Gb/s (跨節點 IB/RoCE) |
-
-### 2.5 各節點設定與相依關係
-
-本節回答兩件事：**不同角色各自要做哪些設定**，以及**先後／前提（相依性）**為何。細部 YAML 見後續 §3～§7；此處為總表與順序心智模型。
-
-#### 2.5.1 分角色：設定項目一覽
-
-| 角色 | 機房／OS 層（Day-0） | 叢集／平台層（Day-1+） | 備註 |
-|:---|:---|:---|:---|
-| **Login Node** | RHEL 安裝、帳號與 **sudo** 政策、防火牆允許 **出站 → API VIP:6443**、可選 VPN | 安裝 **`oc`/Helm**、放置 **kubeconfig**、同步 **CA**、自動化 **SSH key** | **不**加入叢集；沒有 API 就無法在此用 `oc` |
-| **Control Plane ×3** | **DNS**（api、api-int、*.apps 等）、**VIP/LB**、開機／PXE、磁碟（**系統碟 + 獨立 etcd 碟**）、管理網 Bond | **kube-apiserver、etcd、scheduler、controller** 由安裝與 **MCO** 管理；日常**不**手改 master | 任一 Master 長期 **NotReady** 會影響 **API 可用度** → 全叢集卡住 |
-| **Infra（可選）** | 與一般 Worker 類似（無 GPU） | **Taint/Toleration** 讓 Ingress、Registry、監控等只排到此類節點（依組織政策） | 無 Infra 時，上述元件可落在 **GPU Worker**（不建議）或 **共用 Worker** |
-| **GPU Worker ×8** | 管理網 + **高速網（IB/RoCE）** 佈線、BMC、本地 **NVMe / Scratch**、GPU **韌體／驗證模式**、若用 host MOFED 則 **與 ClusterPolicy 對齊** | 節點 **Ready**、**§4.2** label/taint、**§5** NFD → GPU Operator → **ClusterPolicy**、可選 **MIG** label、**Multus** 所需 **主機介面名稱**、**Local PV** 路徑與權限 | 設定錯誤時常見現象：**Unschedulable**、**驱动 Pod CrashLoop**、**無 nvidia.com/gpu**、**PVC 無法掛載** |
-| **儲存後端**（Ceph、NFS、Lustre、S3…） | 網段與 **防火牆** 允許 **Worker（或 CSI Pod 所在節點）** 存取 | 在叢集內部署 **CSI / Operator** 或 **OC Storage**，建立 **StorageClass**；之後 **PVC** 才會 **Bound** | 與 GPU **無直接驅動相依**，但 **有 PVC 的工作負載** 依賴儲存先好 |
-
-#### 2.5.2 相依性（先後與前提）
-
-**硬相依（上一層不成立則下一層必敗）**
-
-1. **機房 L2/L3 + DNS + API VIP** → 否則 **安裝程式與 kubelet** 無法對齊叢集端點。  
-2. **Control Plane 就緒、API Server 健康** → 才有 **`oc`、CSR 簽署、節點加入**。  
-3. **GPU Worker `Ready`**（管理網通、kubelet 正常）→ 才能在其上跑 **GPU Operator 的 DaemonSet**（驅動、device plugin、DCGM）。  
-4. **NFD（建議先裝）** → 節點上才有穩定 **feature label**，利於 **NodeFeatureRule / GPU Operator** 選節點（見 §5）。  
-5. **ClusterPolicy / driver container 成功** → 節點才會回報 **`nvidia.com/gpu`**，`Pod` 才可請求 GPU。  
-6. **StorageClass + 後端連通** → 需要 **PVC** 的 Pod（Notebook、Registry、部分 Pipeline）才會 **Bound**。
-
-**軟相依（建議順序，便於除錯）**
-
-- **§4.2 label/taint** 宜在 **確認 GPU Operator 已把資源掛上節點** 之後再做，否則排程錯誤不易分辨是「沒 GPU」還是「被 taint 擋」。  
-- **§3.3 Multus** 依賴 **主機上實體介面已存在且名稱與 NAD 一致**（例如 `ib0`）；與 **OVN 預設 Pod 網** 獨立。  
-- **§6 RHOAI / DSC** 依賴 **Operator 來自 Catalog 可拉映像**、**Worker 有足夠 CPU/RAM**、**Ingress／Route** 可服務（常與 Infra 或節點角色有關）。  
-- **§8 Kueue** 依賴 **叢集已安裝 Kueue CRD**（通常由 RHOAI 或獨立 Operator 帶入），且 **ResourceQuota** 與團隊命名空間已建立。
-
-#### 2.5.3 相依關係圖（簡化）
-
-```mermaid
-flowchart LR
-  DC[機房網路 / DNS / VIP]
-  CP[Control Plane 就緒]
-  LN[Login + kubeconfig]
-  WK[GPU Worker Ready]
-  NFD[NFD]
-  GPU[GPU Operator + ClusterPolicy]
-  LAB[Label / Taint]
-  ST[儲存 CSI + StorageClass]
-  AI[RHOAI / 應用]
-
-  DC --> CP
-  CP --> LN
-  CP --> WK
-  WK --> NFD
-  NFD --> GPU
-  GPU --> LAB
-  CP --> ST
-  WK --> ST
-  LAB --> AI
-  ST --> AI
-```
-
-> **讀圖**：`ST`（儲存）與 `GPU` 分支可部分**並行**，但 **「會掛 PVC 的 GPU Job」** 必須兩邊都滿足。`LN` 僅代表**管理路徑**；實際運算與儲存資料流在 Worker 與儲存後端之間。
 
 ---
 
@@ -382,13 +320,92 @@ A100 支援 **GPUDirect RDMA**，允許 GPU 直接透過 InfiniBand 讀寫遠端
 GPUDirect：  GPU → NIC → Network → NIC → GPU  (CPU 不參與!)
 ```
 
-> 這對大型分散式訓練 (如 Megatron-LM, DeepSpeed) 的效能至關重要。需要在 GPU Operator 中啟用 `driver.rdma.enabled: true`。
+> 這對大型分散式訓練 (如 Megatron-LM, DeepSpeed) 的效能至關重要。需要在 GPU Operator 中啟用 `driver.rdma.enabled: true`（見 **§6** ClusterPolicy）。
 
 ---
 
-## 4. OpenShift 叢集規劃
+## 4. 作業面：指令位置與節點相依關係
 
-### 4.1 安裝方式選擇
+### 4.1 指令要在哪台機器執行？
+
+本文件所有 **`oc` / `kubectl` / `openshift-install`** 類指令，若未另註明，預設規則如下：
+
+| 執行環境 | 用途 | 典型指令 | 備註 |
+|:---|:---|:---|:---|
+| **Login Node（跳板機）** | 日常叢集管理、套用 YAML、除錯、CI runner | `oc apply`、`oc get`、`oc adm`、`helm` | **主要工作位置**；需安裝 `oc`、可連 **API VIP:6443**、`KUBECONFIG` 指向具 **cluster-admin**（或足夠 RBAC）的 kubeconfig |
+| **安裝用工作站／自動化主機** | **首次安裝** OpenShift（IPI / UPI / Agent） | `openshift-install create cluster`、`openshift-install wait-for` | 僅安裝階段；安裝完成後仍建議改在 **Login Node** 做日常操作 |
+| **開發者筆電** | 連線、隧道、瀏覽器開 Console | `ssh -L ...`、`curl` 測 API | **不**在筆電上對生產叢集執行大量 `oc apply`（除非 kubeconfig 與權限由組織允許且網路可達） |
+| **Control Plane（RHCOS）** | **不**作為日常 CLI 入口 | 僅在 Red Hat / 廠商支援指引下排查 `etcd`、`kubelet` | **勿**在 master 上習慣性跑 `oc` 或改叢集狀態 |
+| **GPU Worker（RHCOS）** | **不**執行 `oc apply` | 除錯用 `oc debug node/<name>`，或依政策 SSH 查 **NVIDIA / MOFED** | 應用與 Operator 由叢集排程，非人工 SSH 裝套件 |
+| **叢集內 Pod** | 驗證 GPU、看指標 | `oc exec ... -- nvidia-smi`、`dcgmi` | **觸發端**仍在 Login（或 CI）：你在外部下 `oc exec`，實際程式在 Pod 內跑 |
+
+**權限與網路**：多數範例需 **cluster-admin**。若使用 **Dedicated / ROSA**，部分 `openshift-*` namespace 可能受限，請改依雲端廠商文件操作。
+
+### 4.2 各節點設定與相依關係
+
+本節回答兩件事：**不同角色各自要做哪些設定**，以及**先後／前提（相依性）**為何。細部 YAML 分散於後續 **§5**（叢集與節點策略）、**§6**（GPU Operator）、**§7**（儲存）、**§8**（RHOAI）、**§9**（多租戶／Kueue）、**§10**（監控）；**§3** 為網路與 Multus 範例。此處為總表與順序心智模型。
+
+#### 4.2.1 分角色：設定項目一覽
+
+| 角色 | 機房／OS 層（Day-0） | 叢集／平台層（Day-1+） | 備註 |
+|:---|:---|:---|:---|
+| **Login Node** | RHEL 安裝、帳號與 **sudo** 政策、防火牆允許 **出站 → API VIP:6443**、可選 VPN | 安裝 **`oc`/Helm**、放置 **kubeconfig**、同步 **CA**、自動化 **SSH key** | **不**加入叢集；沒有 API 就無法在此用 `oc` |
+| **Control Plane ×3** | **DNS**（api、api-int、*.apps 等）、**VIP/LB**、開機／PXE、磁碟（**系統碟 + 獨立 etcd 碟**）、管理網 Bond | **kube-apiserver、etcd、scheduler、controller** 由安裝與 **MCO** 管理；日常**不**手改 master | 任一 Master 長期 **NotReady** 會影響 **API 可用度** → 全叢集卡住 |
+| **Infra（可選）** | 與一般 Worker 類似（無 GPU） | **Taint/Toleration** 讓 Ingress、Registry、監控等只排到此類節點（依組織政策） | 無 Infra 時，上述元件可落在 **GPU Worker**（不建議）或 **共用 Worker** |
+| **GPU Worker ×8** | 管理網 + **高速網（IB/RoCE）** 佈線、BMC、本地 **NVMe / Scratch**、GPU **韌體／驗證模式**、若用 host MOFED 則 **與 ClusterPolicy 對齊** | 節點 **Ready**、**§5.2** label/taint、**§6** NFD → GPU Operator → **ClusterPolicy**、可選 **MIG** label、**§3.3 Multus** 所需 **主機介面名稱**、**§7** Local PV 路徑與權限 | 設定錯誤時常見現象：**Unschedulable**、**驱动 Pod CrashLoop**、**無 nvidia.com/gpu**、**PVC 無法掛載** |
+| **儲存後端**（Ceph、NFS、Lustre、S3…） | 網段與 **防火牆** 允許 **Worker（或 CSI Pod 所在節點）** 存取 | 在叢集內部署 **CSI / Operator** 或 **OC Storage**，建立 **StorageClass**（**§7**）；之後 **PVC** 才會 **Bound** | 與 GPU **無直接驅動相依**，但 **有 PVC 的工作負載** 依賴儲存先好 |
+
+#### 4.2.2 相依性（先後與前提）
+
+**硬相依（上一層不成立則下一層必敗）**
+
+1. **機房 L2/L3 + DNS + API VIP** → 否則 **安裝程式與 kubelet** 無法對齊叢集端點。  
+2. **Control Plane 就緒、API Server 健康** → 才有 **`oc`、CSR 簽署、節點加入**。  
+3. **GPU Worker `Ready`**（管理網通、kubelet 正常）→ 才能在其上跑 **GPU Operator 的 DaemonSet**（驅動、device plugin、DCGM）。  
+4. **NFD（建議先裝）** → 節點上才有穩定 **feature label**，利於 **NodeFeatureRule / GPU Operator** 選節點（見 **§6**）。  
+5. **ClusterPolicy / driver container 成功** → 節點才會回報 **`nvidia.com/gpu`**，`Pod` 才可請求 GPU。  
+6. **StorageClass + 後端連通** → 需要 **PVC** 的 Pod（Notebook、Registry、部分 Pipeline）才會 **Bound**（**§7**）。
+
+**軟相依（建議順序，便於除錯）**
+
+- **§5.2 label/taint** 宜在 **確認 GPU Operator 已把資源掛上節點** 之後再做，否則排程錯誤不易分辨是「沒 GPU」還是「被 taint 擋」。  
+- **§3.3 Multus** 依賴 **主機上實體介面已存在且名稱與 NAD 一致**（例如 `ib0`）；與 **OVN 預設 Pod 網** 獨立。  
+- **§8 RHOAI / DSC** 依賴 **Operator 來自 Catalog 可拉映像**、**Worker 有足夠 CPU/RAM**、**Ingress／Route** 可服務（常與 Infra 或節點角色有關）。  
+- **§9 Kueue** 依賴 **叢集已安裝 Kueue CRD**（通常由 RHOAI 或獨立 Operator 帶入），且 **ResourceQuota** 與團隊命名空間已建立。
+
+#### 4.2.3 相依關係圖（簡化）
+
+```mermaid
+flowchart LR
+  DC[機房網路 / DNS / VIP]
+  CP[Control Plane 就緒]
+  LN[Login + kubeconfig]
+  WK[GPU Worker Ready]
+  NFD[NFD]
+  GPU[GPU Operator + ClusterPolicy]
+  LAB[Label / Taint]
+  ST[儲存 CSI + StorageClass]
+  AI[RHOAI / 應用]
+
+  DC --> CP
+  CP --> LN
+  CP --> WK
+  WK --> NFD
+  NFD --> GPU
+  GPU --> LAB
+  CP --> ST
+  WK --> ST
+  LAB --> AI
+  ST --> AI
+```
+
+> **讀圖**：`ST`（儲存）與 `GPU` 分支可部分**並行**，但 **「會掛 PVC 的 GPU Job」** 必須兩邊都滿足。`LN` 僅代表**管理路徑**；實際運算與儲存資料流在 Worker 與儲存後端之間。
+
+---
+
+## 5. OpenShift 叢集規劃
+
+### 5.1 安裝方式選擇
 
 | 安裝方式 | 適用場景 | 建議 |
 |:---|:---|:---|
@@ -398,7 +415,7 @@ GPUDirect：  GPU → NIC → Network → NIC → GPU  (CPU 不參與!)
 
 > **安裝階段指令在哪跑**：`openshift-install`、`openshift-baremetal-install` 等通常在 **安裝用工作站** 或 **自動化 jump host** 執行；叢集就緒後的 **Node / Operator / 應用** 設定一律建議在 **Login Node** 用 `oc` 完成。
 
-### 4.2 Node Label 與 Taint 策略
+### 5.2 Node Label 與 Taint 策略
 
 **執行位置**：**Login Node**（`oc` + **cluster-admin** kubeconfig）。節點名 `gpu-worker-01`… 請替換為 `oc get nodes` 實際名稱。
 
@@ -419,7 +436,7 @@ oc get nodes -l nvidia.com/gpu.product=A100-SXM4-80GB
 
 > 🔑 **Taint 的意義**：確保昂貴的 GPU 節點不會被一般的 Web 服務或監控 Pod 佔用。只有帶有 `tolerations` 的 GPU 工作負載才能被調度上來。
 
-### 4.3 MachineSet 定義 (如使用 IPI)
+### 5.3 MachineSet 定義 (如使用 IPI)
 
 **執行位置**：**Login Node**；`oc apply -f machineset-gpu.yaml`（需有 **cluster-admin** 或 `openshift-machine-api` 相關權限）。**裸機 UPI** 常改以 **BareMetalHost** 裝節點，未必使用本節 MachineSet。
 
@@ -453,9 +470,9 @@ spec:
 
 ---
 
-## 5. NVIDIA GPU Operator 部署
+## 6. NVIDIA GPU Operator 部署
 
-### 5.1 安裝流程
+### 6.1 安裝流程
 
 **執行位置**：**Login Node**（`oc` + **cluster-admin**）。下列以 `oc apply -f - <<EOF` 內嵌清單；亦可改為存成檔案後 `oc apply -f`。
 
@@ -503,7 +520,7 @@ spec:
 EOF
 ```
 
-### 5.2 ClusterPolicy 配置
+### 6.2 ClusterPolicy 配置
 
 **執行位置**：**Login Node**；`oc apply -f clusterpolicy.yaml`。**MOFED / IB** 若設 `useHostMofed: true`，須先在 **GPU Worker 映像或 Day-2 機制** 上備妥驅動（本文件不涵蓋 OS 層手動編譯；生產環境多與廠商基線映像一併交付）。
 
@@ -551,7 +568,7 @@ spec:
           value: "true"     # 部署時自動驗證 GPU 可用性
 ```
 
-### 5.3 驗證 GPU 可用
+### 6.3 驗證 GPU 可用
 
 **執行位置**：**Login Node**。`oc exec` 的目標 Pod 在 **叢集內**（`nvidia-gpu-operator` 命名空間），由控制面轉發到實際 Worker 節點。
 
@@ -573,7 +590,7 @@ oc describe node gpu-worker-01 | grep -A 5 "nvidia.com/gpu"
 oc exec -n nvidia-gpu-operator $(oc get pods -n nvidia-gpu-operator -l app=nvidia-driver-daemonset -o name | head -1) -- nvidia-smi
 ```
 
-### 5.4 MIG (Multi-Instance GPU) — 切割 A100
+### 6.4 MIG (Multi-Instance GPU) — 切割 A100
 
 A100 支援 **MIG** 技術，可將一張 GPU 切割成最多 7 個獨立實例：
 
@@ -614,82 +631,6 @@ oc label node gpu-worker-08 nvidia.com/mig.config=all-1g.10gb
 # 查看 MIG 裝置
 oc describe node gpu-worker-08 | grep "nvidia.com/mig"
 # nvidia.com/mig-1g.10gb: 56  (8 GPU × 7 切割)
-```
-
----
-
-## 6. RHOAI 完整部署配置
-
-### 6.1 DataScienceCluster (全功能啟用)
-
-與 CRC 精簡版不同，生產環境應**啟用所有組件**：
-
-**執行位置**：**Login Node**；`oc apply -f dsc.yaml`。通常需 **cluster-admin** 或具 **OpenShift AI / ODH Operator** 所要求之 CR 權限。
-
-```yaml
-apiVersion: datasciencecluster.opendatahub.io/v1
-kind: DataScienceCluster
-metadata:
-  name: default-dsc
-spec:
-  components:
-    dashboard:
-      managementState: Managed
-    workbenches:
-      managementState: Managed
-    datasciencepipelines:
-      managementState: Managed
-    modelmeshserving:
-      managementState: Managed      # ✅ 啟用 (CRC 環境為 Removed)
-    kserve:
-      managementState: Managed      # ✅ 啟用 (CRC 環境為 Removed)
-      serving:
-        ingressGateway:
-          certificate:
-            type: SelfSigned
-        managementState: Managed
-    ray:
-      managementState: Managed      # ✅ 啟用 (CRC 環境為 Removed)
-    trustyai:
-      managementState: Managed      # ✅ 啟用 (CRC 環境為 Removed)
-    trainingoperator:
-      managementState: Managed      # ✅ 啟用 (CRC 環境為 Removed)
-    kueue:
-      managementState: Managed      # ✅ GPU 排程佇列
-    modelregistry:
-      managementState: Managed
-```
-
-### 6.2 Notebook Image 配置
-
-生產環境建議預建 **GPU 專屬映像**：
-
-| 映像名稱 | 內含框架 | GPU 支援 |
-|:---|:---|:---|
-| `CUDA Data Science` | Python 3.11, CUDA 12.4, pandas, scikit-learn | ✅ |
-| `PyTorch` | PyTorch 2.3, CUDA 12.4, transformers | ✅ |
-| `TensorFlow` | TensorFlow 2.16, CUDA 12.4 | ✅ |
-| `Code Server (VS Code)` | VS Code Server, Python, CUDA | ✅ |
-| `Habana (Gaudi)` | Intel Gaudi SDK | Gaudi 專用 |
-
-### 6.3 Workbench GPU 配額配置
-
-**執行位置**：**Login Node**；以 **叢集管理員** 或具該 **Namespace** 管理權限者執行 `oc apply -f`（範例命名空間 `ds-project-team-a` 須已存在）。
-
-```yaml
-# 允許使用者在 Notebook 中申請 GPU
-apiVersion: v1
-kind: ResourceQuota
-metadata:
-  name: gpu-quota-team-a
-  namespace: ds-project-team-a
-spec:
-  hard:
-    requests.nvidia.com/gpu: "8"    # 最多 8 GPU
-    requests.cpu: "64"
-    requests.memory: "256Gi"
-    persistentvolumeclaims: "10"
-    pods: "20"
 ```
 
 ---
@@ -779,9 +720,85 @@ spec:
 
 ---
 
-## 8. 多租戶與 GPU 排程策略
+## 8. RHOAI 完整部署配置
 
-### 8.1 Kueue 排程系統
+### 8.1 DataScienceCluster (全功能啟用)
+
+與 CRC 精簡版不同，生產環境應**啟用所有組件**：
+
+**執行位置**：**Login Node**；`oc apply -f dsc.yaml`。通常需 **cluster-admin** 或具 **OpenShift AI / ODH Operator** 所要求之 CR 權限。
+
+```yaml
+apiVersion: datasciencecluster.opendatahub.io/v1
+kind: DataScienceCluster
+metadata:
+  name: default-dsc
+spec:
+  components:
+    dashboard:
+      managementState: Managed
+    workbenches:
+      managementState: Managed
+    datasciencepipelines:
+      managementState: Managed
+    modelmeshserving:
+      managementState: Managed      # ✅ 啟用 (CRC 環境為 Removed)
+    kserve:
+      managementState: Managed      # ✅ 啟用 (CRC 環境為 Removed)
+      serving:
+        ingressGateway:
+          certificate:
+            type: SelfSigned
+        managementState: Managed
+    ray:
+      managementState: Managed      # ✅ 啟用 (CRC 環境為 Removed)
+    trustyai:
+      managementState: Managed      # ✅ 啟用 (CRC 環境為 Removed)
+    trainingoperator:
+      managementState: Managed      # ✅ 啟用 (CRC 環境為 Removed)
+    kueue:
+      managementState: Managed      # ✅ GPU 排程佇列
+    modelregistry:
+      managementState: Managed
+```
+
+### 8.2 Notebook Image 配置
+
+生產環境建議預建 **GPU 專屬映像**：
+
+| 映像名稱 | 內含框架 | GPU 支援 |
+|:---|:---|:---|
+| `CUDA Data Science` | Python 3.11, CUDA 12.4, pandas, scikit-learn | ✅ |
+| `PyTorch` | PyTorch 2.3, CUDA 12.4, transformers | ✅ |
+| `TensorFlow` | TensorFlow 2.16, CUDA 12.4 | ✅ |
+| `Code Server (VS Code)` | VS Code Server, Python, CUDA | ✅ |
+| `Habana (Gaudi)` | Intel Gaudi SDK | Gaudi 專用 |
+
+### 8.3 Workbench GPU 配額配置
+
+**執行位置**：**Login Node**；以 **叢集管理員** 或具該 **Namespace** 管理權限者執行 `oc apply -f`（範例命名空間 `ds-project-team-a` 須已存在）。
+
+```yaml
+# 允許使用者在 Notebook 中申請 GPU
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: gpu-quota-team-a
+  namespace: ds-project-team-a
+spec:
+  hard:
+    requests.nvidia.com/gpu: "8"    # 最多 8 GPU
+    requests.cpu: "64"
+    requests.memory: "256Gi"
+    persistentvolumeclaims: "10"
+    pods: "20"
+```
+
+---
+
+## 9. 多租戶與 GPU 排程策略
+
+### 9.1 Kueue 排程系統
 
 RHOAI 使用 **Kueue** 做為 GPU 工作負載的排程與佇列系統：
 
@@ -832,7 +849,7 @@ spec:
       effect: NoSchedule
 ```
 
-### 8.2 多團隊 GPU 分配範例
+### 9.2 多團隊 GPU 分配範例
 
 ```
 Total: 64 × A100
@@ -869,7 +886,7 @@ spec:
     limits.nvidia.com/gpu: "16"
 ```
 
-### 8.3 Priority Class (優先權等級)
+### 9.3 Priority Class (優先權等級)
 
 **執行位置**：**Login Node**（**cluster-admin**）；`oc apply -f priorityclasses.yaml`。
 
@@ -909,9 +926,9 @@ preemptionPolicy: PreemptLowerPriority
 
 ---
 
-## 9. 監控與告警
+## 10. 監控與告警
 
-### 9.1 DCGM (Data Center GPU Manager) 指標
+### 10.1 DCGM (Data Center GPU Manager) 指標
 
 GPU Operator 會自動部署 **DCGM Exporter**，將 GPU 指標暴露給 Prometheus：
 
@@ -924,7 +941,7 @@ GPU Operator 會自動部署 **DCGM Exporter**，將 GPU 指標暴露給 Prometh
 | `DCGM_FI_DEV_POWER_USAGE` | GPU 功耗 (W) | > 350W (接近 400W TDP) |
 | `DCGM_FI_DEV_XID_ERRORS` | GPU XID 錯誤 | > 0 (硬體異常告警) |
 
-### 9.2 Grafana Dashboard
+### 10.2 Grafana Dashboard
 
 **執行位置**：**Login Node**；需 **cluster-admin**（或具 `openshift-monitoring` namespace 寫入權限）。請先將 Dashboard JSON 存成本機 `gpu-dashboard.json`（與 `oc` 同目錄或改用絕對路徑）。
 
@@ -937,7 +954,7 @@ oc create configmap gpu-dashboard \
   -n openshift-monitoring
 ```
 
-### 9.3 PrometheusRule 告警範例
+### 10.3 PrometheusRule 告警範例
 
 **執行位置**：**Login Node**；`oc apply -f gpu-alerts.yaml`（**cluster-admin** 或監控 Operator 允許之權限）。
 
@@ -988,7 +1005,7 @@ spec:
 
 ---
 
-## 10. 與 CRC 環境的差異對照
+## 11. 與 CRC 環境的差異對照
 
 | 項目 | CRC (開發環境) | 生產 GPU 叢集 |
 |:---|:---|:---|
