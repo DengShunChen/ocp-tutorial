@@ -10,7 +10,7 @@
 
 **建議閱讀順序**（由下而上對應「先想清楚架構與硬體 → 再談網路與作業方式 → 再裝叢集與 GPU → 儲存就緒後上平台與多租戶 → 最後監控與環境對照」）：
 
-1. [叢集架構總覽](#1-叢集架構總覽) — 拓樸與設計原則  
+1. [叢集架構總覽](#1-叢集架構總覽) — 拓樸、設計原則、[施作安裝流程](#13-施作與安裝流程總覽)  
 2. [節點硬體與資源規格](#2-節點硬體與資源規格) — Login / Control / GPU Worker、資源加總  
 3. [網路架構設計](#3-網路架構設計) — 多平面、Multus、GPUDirect  
 4. [作業面：指令位置與節點相依](#4-作業面指令位置與節點相依關係) — 在哪台跑 `oc`、設定先後與相依圖  
@@ -88,6 +88,71 @@
 | **網路分層** | 管理流量 (10/25G) 與 GPU 通訊 (100G/IB) 走不同網路 |
 | **可擴展性** | GPU Worker 可隨需增減，不影響 Control Plane |
 | **資源隔離** | 透過 Namespace + ResourceQuota + Priority 實現多租戶隔離 |
+
+### 1.3 施作與安裝流程（總覽）
+
+下列流程對齊本文 **§2～§10** 的建議閱讀與實作順序：**Phase 0～1** 以前置與叢集生命週期為主；**Phase 2** 在 **API 與 Worker 就緒** 後，**GPU Operator（§6）** 與 **儲存／CSI（§7）** 可由不同團隊**並行**；**整合檢查點**後再收斂 **Label/Taint、Multus/RDMA、RHOAI、租戶治理與監控**。細部指令與 YAML 仍以各章為準；若你由 SLURM 遷移，請交叉對照 [09-slurm-to-ocp-gpu-migration.md](09-slurm-to-ocp-gpu-migration.md)。
+
+```mermaid
+%%{init: {'flowchart': {'curve': 'basis'}}}%%
+flowchart TB
+  classDef ph0 fill:#f8fafc,stroke:#64748b,color:#0f172a,stroke-width:1px
+  classDef ph1 fill:#eff6ff,stroke:#2563eb,color:#1e3a8a,stroke-width:1px
+  classDef ph2 fill:#ecfeff,stroke:#0891b2,color:#164e63,stroke-width:1px
+  classDef ph3 fill:#f0fdf4,stroke:#16a34a,color:#14532d,stroke-width:1px
+  classDef ph4 fill:#f5f3ff,stroke:#6d28d9,color:#4c1d95,stroke-width:1px
+  classDef gate fill:#fefce8,stroke:#ca8a04,color:#713f12,stroke-width:2px
+
+  subgraph P0["Phase 0 · Day-0 機房與前置"]
+    direction TB
+    A0["硬體驗收 / 上架 / BMC / 本地 NVMe<br/>§2"]
+    A1["MGMT + DATA 平面 · DNS · api/api-int/apps · VIP/MTU<br/>§3"]
+    A2["Login / Bastion · oc · 自動化帳號 · 防火牆出站 6443<br/>§4"]
+  end
+
+  subgraph P1["Phase 1 · OpenShift 生命週期"]
+    direction TB
+    B0["安裝 UPI / Agent / IPI · install-config · 節點映像<br/>§5.1"]
+    B1["叢集可用 · kubeconfig cluster-admin · Workers Ready"]
+  end
+
+  subgraph P2["Phase 2 · 平行軌（前提：API 健康）"]
+    direction TB
+    C0["NFD → Subscription → GPU Operator → ClusterPolicy<br/>驗證 nvidia.com/gpu · DCGM · §6"]
+    C1["儲存後端 · ODF/CSI · StorageClass · 試綁 PVC<br/>§7"]
+  end
+
+  CHK{{"整合檢查點<br/>GPU 試排程 Pod · PVC Bound 抽樣<br/>Registry / Ingress 可達（依政策）"}}
+
+  subgraph P3["Phase 3 · 節點與訓練網路"]
+    direction TB
+    D0["Label / Taint（建議 GPU 資源掛上後）<br/>§5.2 · §5.3"]
+    D1["Multus NAD · GPUDirect / RDMA 設定<br/>§3.3 · §3.4 · §6.2"]
+  end
+
+  subgraph P4["Phase 4 · AI 平台與上線"]
+    direction TB
+    E0["RHOAI Operator · DataScienceCluster<br/>§8"]
+    E1["命名空間 · ResourceQuota · Kueue · PriorityClass<br/>§9"]
+    E2["PrometheusRule · Grafana / DCGM 儀表<br/>§10"]
+    E3["UAT · 上線檢核 · 維運移交 · §11 對照 CRC"]
+  end
+
+  A0 --> A1 --> A2 --> B0 --> B1
+  B1 --> C0 & C1
+  C0 --> CHK
+  C1 --> CHK
+  CHK --> D0 --> D1 --> E0 --> E1 --> E2 --> E3
+
+  class A0,A1,A2 ph0
+  class B0,B1 ph1
+  class C0,C1 ph2
+  class D0,D1 ph3
+  class E0,E1,E2,E3 ph4
+  class CHK gate
+```
+
+> **並行施作注意**：Phase 2 兩軌可同時進行，但若 Workbench／Pipeline **強依賴 PVC**，應以 **§7 StorageClass 可先服務** 為風險控管點；**§5.2 Taint** 過早套用會讓除錯與 **§6** 驅動安裝混淆，故流程將其放在檢查點之後。
 
 ---
 
